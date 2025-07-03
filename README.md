@@ -1,9 +1,10 @@
 # AIVATAR - AI 기반 맞춤 코디 추천 플랫폼
 
+[![Version](https://img.shields.io/badge/Version-1.0.0-brightgreen.svg)](https://github.com/today-self-study/aivatar/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![React](https://img.shields.io/badge/React-18.3.1-blue.svg)](https://reactjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.5.3-blue.svg)](https://www.typescriptlang.org/)
-[![Vite](https://img.shields.io/badge/Vite-6.0.1-purple.svg)](https://vitejs.dev/)
+[![React](https://img.shields.io/badge/React-19.1.0-blue.svg)](https://reactjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.8.3-blue.svg)](https://www.typescriptlang.org/)
+[![Vite](https://img.shields.io/badge/Vite-7.0.0-purple.svg)](https://vitejs.dev/)
 [![OpenAI](https://img.shields.io/badge/OpenAI-API-green.svg)](https://openai.com/)
 
 > AI를 활용한 개인 맞춤형 코디 추천 서비스. 성별, 체형, 신체 정보를 기반으로 완벽한 스타일링을 제안합니다.
@@ -38,9 +39,9 @@
 ## 🚀 기술 스택
 
 ### Frontend
-- **React 18.3.1** - 모던 React 18 기능 활용
-- **TypeScript 5.5.3** - 타입 안전성 보장
-- **Vite 6.0.1** - 빠른 개발 환경과 최적화된 번들링
+- **React 19.1.0** - 모던 React 19 기능 활용
+- **TypeScript 5.8.3** - 타입 안전성 보장
+- **Vite 7.0.0** - 빠른 개발 환경과 최적화된 번들링
 - **TailwindCSS 3.4.17** - 유틸리티 퍼스트 CSS 프레임워크
 
 ### AI & API 통합
@@ -76,6 +77,35 @@ npm run preview
 # GitHub Pages 배포
 npm run deploy
 ```
+
+## 📋 버전 관리
+
+이 프로젝트는 [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다.
+
+### 현재 버전: v1.0.0
+
+### 버전 업데이트 방법
+
+```bash
+# 패치 버전 업데이트 (버그 수정: 1.0.0 → 1.0.1)
+npm run version:patch
+
+# 마이너 버전 업데이트 (새 기능: 1.0.0 → 1.1.0)
+npm run version:minor
+
+# 메이저 버전 업데이트 (큰 변경사항: 1.0.0 → 2.0.0)
+npm run version:major
+
+# 버전 업데이트 후 배포
+npm run deploy:version
+```
+
+### 버전 히스토리
+버전별 상세 변경사항은 [CHANGELOG.md](./CHANGELOG.md)에서 확인할 수 있습니다.
+
+### 배포 상태 확인
+- 서비스 우측 하단에서 현재 배포된 버전과 빌드 시간을 확인할 수 있습니다
+- 각 배포마다 고유한 빌드 타임스탬프가 표시됩니다
 
 ## 🌐 배포
 

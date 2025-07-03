@@ -4,6 +4,7 @@ import { Menu, X, Settings, User, Shirt, Sparkles, Plus, List } from 'lucide-rea
 import BodyTypeSelector from './components/BodyTypeSelector'
 import UserProfileForm from './components/UserProfileForm'
 import GenderSelector from './components/GenderSelector'
+import VersionInfo from './components/VersionInfo'
 import type { 
   UserProfile, 
   BodyType, 
@@ -424,6 +425,11 @@ function App() {
           </div>
         </main>
       </div>
+
+      {/* 버전 정보 */}
+      <footer className="fixed bottom-4 right-4 z-30">
+        <VersionInfo />
+      </footer>
 
       {/* 사이드바 오버레이 */}
       {isSidebarOpen && (
