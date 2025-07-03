@@ -50,7 +50,9 @@ function RealisticAvatar({ gender, bodyType, height, weight }: RealisticAvatarPr
       }
     };
 
-    const genderRatios = baseRatios[gender];
+    // 안전한 gender 값 확인 및 기본값 설정
+    const safeGender = gender === 'male' || gender === 'female' ? gender : 'male';
+    const genderRatios = baseRatios[safeGender];
     
     // 체형별 조정
     const bodyTypeAdjustments = {
@@ -64,14 +66,18 @@ function RealisticAvatar({ gender, bodyType, height, weight }: RealisticAvatarPr
 
     const adjustment = bodyTypeAdjustments[bodyType as keyof typeof bodyTypeAdjustments] || bodyTypeAdjustments.rectangle;
     
+    // 안전한 계산을 위한 기본값 보장
+    const safeHeightRatio = heightRatio || 1.0;
+    const safeBmiRatio = bmiRatio || 1.0;
+    
     return {
-      shoulder: genderRatios.shoulder * adjustment.shoulder * heightRatio,
-      chest: genderRatios.chest * adjustment.chest * bmiRatio,
-      waist: genderRatios.waist * adjustment.waist * bmiRatio,
-      hip: genderRatios.hip * adjustment.hip * bmiRatio,
-      thigh: genderRatios.thigh * adjustment.thigh * bmiRatio,
-      torsoLength: genderRatios.torsoLength * heightRatio,
-      overall: heightRatio
+      shoulder: (genderRatios?.shoulder || 1.0) * (adjustment?.shoulder || 1.0) * safeHeightRatio,
+      chest: (genderRatios?.chest || 1.0) * (adjustment?.chest || 1.0) * safeBmiRatio,
+      waist: (genderRatios?.waist || 1.0) * (adjustment?.waist || 1.0) * safeBmiRatio,
+      hip: (genderRatios?.hip || 1.0) * (adjustment?.hip || 1.0) * safeBmiRatio,
+      thigh: (genderRatios?.thigh || 1.0) * (adjustment?.thigh || 1.0) * safeBmiRatio,
+      torsoLength: (genderRatios?.torsoLength || 1.0) * safeHeightRatio,
+      overall: safeHeightRatio
     };
   };
 
@@ -102,45 +108,46 @@ function RealisticAvatar({ gender, bodyType, height, weight }: RealisticAvatarPr
 
   // 머리 생성 함수
   const createHead = () => {
-    const headGeometry = new THREE.SphereGeometry(0.12 * ratios.overall, 16, 16);
-    headGeometry.scale(1, 1.1, 0.9); // 더 자연스러운 머리 형태
     return (
-      <mesh geometry={headGeometry} material={skinMaterial} position={[0, 1.58 * ratios.overall, 0]} />
+      <mesh position={[0, 1.58 * ratios.overall, 0]} material={skinMaterial}>
+        <sphereGeometry args={[0.12 * ratios.overall, 16, 16]} />
+      </mesh>
     );
   };
 
   // 목 생성 함수
   const createNeck = () => {
-    const neckGeometry = new THREE.CylinderGeometry(0.06, 0.08, 0.15 * ratios.overall, 12);
     return (
-      <mesh geometry={neckGeometry} material={skinMaterial} position={[0, 1.42 * ratios.overall, 0]} />
+      <mesh position={[0, 1.42 * ratios.overall, 0]} material={skinMaterial}>
+        <cylinderGeometry args={[0.06, 0.08, 0.15 * ratios.overall, 12]} />
+      </mesh>
     );
   };
 
   // 몸통 생성 함수 (더 현실적인 형태)
   const createTorso = () => {
-    const torsoGeometry = new THREE.SphereGeometry(0.2, 16, 16);
-    torsoGeometry.scale(ratios.chest, 0.7 * ratios.torsoLength, 0.6);
     return (
-      <mesh geometry={torsoGeometry} material={clothingMaterial} position={[0, 1.1 * ratios.overall, 0]} />
+      <mesh position={[0, 1.1 * ratios.overall, 0]} material={clothingMaterial} scale={[ratios.chest, 0.7 * ratios.torsoLength, 0.6]}>
+        <sphereGeometry args={[0.2, 16, 16]} />
+      </mesh>
     );
   };
 
   // 허리 생성 함수
   const createWaist = () => {
-    const waistGeometry = new THREE.SphereGeometry(0.15, 16, 16);
-    waistGeometry.scale(ratios.waist, 0.4, 0.5);
     return (
-      <mesh geometry={waistGeometry} material={clothingMaterial} position={[0, 0.7 * ratios.overall, 0]} />
+      <mesh position={[0, 0.7 * ratios.overall, 0]} material={clothingMaterial} scale={[ratios.waist, 0.4, 0.5]}>
+        <sphereGeometry args={[0.15, 16, 16]} />
+      </mesh>
     );
   };
 
   // 엉덩이 생성 함수
   const createHips = () => {
-    const hipGeometry = new THREE.SphereGeometry(0.18, 16, 16);
-    hipGeometry.scale(ratios.hip, 0.5, 0.8);
     return (
-      <mesh geometry={hipGeometry} material={pantsMaterial} position={[0, 0.4 * ratios.overall, 0]} />
+      <mesh position={[0, 0.4 * ratios.overall, 0]} material={pantsMaterial} scale={[ratios.hip, 0.5, 0.8]}>
+        <sphereGeometry args={[0.18, 16, 16]} />
+      </mesh>
     );
   };
 
@@ -148,29 +155,22 @@ function RealisticAvatar({ gender, bodyType, height, weight }: RealisticAvatarPr
   const createLeg = (side: 'left' | 'right') => {
     const xPosition = side === 'left' ? -0.08 * ratios.hip : 0.08 * ratios.hip;
     
-    // 허벅지
-    const thighGeometry = new THREE.CylinderGeometry(0.08 * ratios.thigh, 0.06 * ratios.thigh, 0.4 * ratios.overall, 12);
-    const thighMesh = (
-      <mesh geometry={thighGeometry} material={pantsMaterial} position={[xPosition, 0.05 * ratios.overall, 0]} />
-    );
-
-    // 무릎
-    const kneeGeometry = new THREE.SphereGeometry(0.05 * ratios.overall, 8, 8);
-    const kneeMesh = (
-      <mesh geometry={kneeGeometry} material={pantsMaterial} position={[xPosition, -0.2 * ratios.overall, 0]} />
-    );
-
-    // 정강이
-    const shinGeometry = new THREE.CylinderGeometry(0.05 * ratios.overall, 0.045 * ratios.overall, 0.35 * ratios.overall, 12);
-    const shinMesh = (
-      <mesh geometry={shinGeometry} material={pantsMaterial} position={[xPosition, -0.45 * ratios.overall, 0]} />
-    );
-
     return (
       <group key={side}>
-        {thighMesh}
-        {kneeMesh}
-        {shinMesh}
+        {/* 허벅지 */}
+        <mesh position={[xPosition, 0.05 * ratios.overall, 0]} material={pantsMaterial}>
+          <cylinderGeometry args={[0.08 * ratios.thigh, 0.06 * ratios.thigh, 0.4 * ratios.overall, 12]} />
+        </mesh>
+
+        {/* 무릎 */}
+        <mesh position={[xPosition, -0.2 * ratios.overall, 0]} material={pantsMaterial}>
+          <sphereGeometry args={[0.05 * ratios.overall, 8, 8]} />
+        </mesh>
+
+        {/* 정강이 */}
+        <mesh position={[xPosition, -0.45 * ratios.overall, 0]} material={pantsMaterial}>
+          <cylinderGeometry args={[0.05 * ratios.overall, 0.045 * ratios.overall, 0.35 * ratios.overall, 12]} />
+        </mesh>
       </group>
     );
   };
@@ -180,44 +180,32 @@ function RealisticAvatar({ gender, bodyType, height, weight }: RealisticAvatarPr
     const xPosition = side === 'left' ? -0.22 * ratios.shoulder : 0.22 * ratios.shoulder;
     const rotation: [number, number, number] = side === 'left' ? [0, 0, 0.15] : [0, 0, -0.15];
     
-    // 어깨
-    const shoulderGeometry = new THREE.SphereGeometry(0.08 * ratios.overall, 8, 8);
-    const shoulderMesh = (
-      <mesh geometry={shoulderGeometry} material={clothingMaterial} position={[xPosition, 1.25 * ratios.overall, 0]} />
-    );
-
-    // 상완
-    const upperArmGeometry = new THREE.CylinderGeometry(0.06 * ratios.overall, 0.05 * ratios.overall, 0.3 * ratios.overall, 12);
-    const upperArmMesh = (
-      <mesh geometry={upperArmGeometry} material={skinMaterial} position={[xPosition, 1.0 * ratios.overall, 0]} rotation={rotation} />
-    );
-
-    // 팔꿈치
-    const elbowGeometry = new THREE.SphereGeometry(0.04 * ratios.overall, 8, 8);
-    const elbowMesh = (
-      <mesh geometry={elbowGeometry} material={skinMaterial} position={[xPosition, 0.8 * ratios.overall, 0]} />
-    );
-
-    // 전완
-    const forearmGeometry = new THREE.CylinderGeometry(0.05 * ratios.overall, 0.04 * ratios.overall, 0.25 * ratios.overall, 12);
-    const forearmMesh = (
-      <mesh geometry={forearmGeometry} material={skinMaterial} position={[xPosition, 0.6 * ratios.overall, 0]} rotation={rotation} />
-    );
-
-    // 손
-    const handGeometry = new THREE.SphereGeometry(0.05 * ratios.overall, 8, 8);
-    handGeometry.scale(0.8, 1.2, 0.6);
-    const handMesh = (
-      <mesh geometry={handGeometry} material={skinMaterial} position={[xPosition, 0.45 * ratios.overall, 0]} />
-    );
-
     return (
       <group key={side}>
-        {shoulderMesh}
-        {upperArmMesh}
-        {elbowMesh}
-        {forearmMesh}
-        {handMesh}
+        {/* 어깨 */}
+        <mesh position={[xPosition, 1.25 * ratios.overall, 0]} material={clothingMaterial}>
+          <sphereGeometry args={[0.08 * ratios.overall, 8, 8]} />
+        </mesh>
+
+        {/* 상완 */}
+        <mesh position={[xPosition, 1.0 * ratios.overall, 0]} rotation={rotation} material={skinMaterial}>
+          <cylinderGeometry args={[0.06 * ratios.overall, 0.05 * ratios.overall, 0.3 * ratios.overall, 12]} />
+        </mesh>
+
+        {/* 팔꿈치 */}
+        <mesh position={[xPosition, 0.8 * ratios.overall, 0]} material={skinMaterial}>
+          <sphereGeometry args={[0.04 * ratios.overall, 8, 8]} />
+        </mesh>
+
+        {/* 전완 */}
+        <mesh position={[xPosition, 0.6 * ratios.overall, 0]} rotation={rotation} material={skinMaterial}>
+          <cylinderGeometry args={[0.05 * ratios.overall, 0.04 * ratios.overall, 0.25 * ratios.overall, 12]} />
+        </mesh>
+
+        {/* 손 */}
+        <mesh position={[xPosition, 0.45 * ratios.overall, 0]} material={skinMaterial} scale={[0.8, 1.2, 0.6]}>
+          <sphereGeometry args={[0.05 * ratios.overall, 8, 8]} />
+        </mesh>
       </group>
     );
   };
@@ -226,12 +214,11 @@ function RealisticAvatar({ gender, bodyType, height, weight }: RealisticAvatarPr
   const createFoot = (side: 'left' | 'right') => {
     const xPosition = side === 'left' ? -0.08 * ratios.hip : 0.08 * ratios.hip;
     
-    const footGeometry = new THREE.BoxGeometry(0.08 * ratios.overall, 0.05 * ratios.overall, 0.2 * ratios.overall);
-    const footMesh = (
-      <mesh geometry={footGeometry} material={shoeMaterial} position={[xPosition, -0.67 * ratios.overall, 0.08 * ratios.overall]} />
+    return (
+      <mesh position={[xPosition, -0.67 * ratios.overall, 0.08 * ratios.overall]} material={shoeMaterial}>
+        <boxGeometry args={[0.08 * ratios.overall, 0.05 * ratios.overall, 0.2 * ratios.overall]} />
+      </mesh>
     );
-
-    return footMesh;
   };
 
   return (
