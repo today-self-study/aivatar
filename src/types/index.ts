@@ -1,19 +1,10 @@
 export type Gender = 'male' | 'female';
 
-export interface UserProfile {
-  id: string;
-  gender: Gender;
-  height: number; // cm
-  weight: number; // kg
-  bodyType: BodyType;
-  createdAt: Date;
-}
-
 export interface BodyType {
   id: string;
   name: string;
   description: string;
-  avatarImage: string;
+  avatarImage?: string;
   measurements: {
     chest: number;
     waist: number;
@@ -24,72 +15,122 @@ export interface BodyType {
   };
 }
 
+export interface UserProfile {
+  id?: string;
+  gender: Gender;
+  bodyType: BodyType;
+  height: number;
+  weight: number;
+  name?: string;
+  age?: number;
+  preferences?: {
+    styles: string[];
+    colors: string[];
+    priceRange: [number, number];
+  };
+}
+
+export type ClothingCategoryType = 'tops' | 'bottoms' | 'outerwear' | 'shoes' | 'accessories';
+
+export interface ClothingCategory {
+  id: ClothingCategoryType;
+  name: string;
+  displayName: string;
+  description: string;
+  icon: string;
+}
+
 export interface ClothingItem {
   id: string;
   name: string;
   brand: string;
-  category: ClothingCategory;
+  category: ClothingCategoryType;
   price: number;
-  currency: string;
+  originalUrl: string;
   imageUrl: string;
-  productUrl: string;
   description: string;
-  sizes: string[];
   colors: string[];
+  sizes: string[];
   tags: string[];
-  isRecommended?: boolean;
+  createdAt: string;
+  createdBy?: string;
+  githubIssueNumber?: number;
 }
 
-export interface ClothingCategory {
-  id: string;
-  name: string;
-  displayName: string;
-  icon: string;
-  position: '3d-position'; // Three.js 좌표계 기준
+export interface AISettings {
+  openaiApiKey: string;
+  model: 'gpt-4' | 'gpt-4-turbo' | 'dall-e-3';
+  maxTokens: number;
 }
 
-export interface WardrobeItem {
-  id: string;
-  clothingItem: ClothingItem;
-  selectedSize: string;
-  selectedColor: string;
-  position: {
-    x: number;
-    y: number;
-    z: number;
-  };
-  rotation: {
-    x: number;
-    y: number;
-    z: number;
-  };
-  scale: {
-    x: number;
-    y: number;
-    z: number;
-  };
-}
-
-export interface OutfitCoordination {
-  id: string;
-  name: string;
-  items: WardrobeItem[];
-  createdAt: Date;
-  userId: string;
-  isPublic: boolean;
-  likes: number;
-  tags: string[];
-}
-
-export interface Avatar3D {
+export interface OutfitGeneration {
   id: string;
   userProfile: UserProfile;
-  meshGeometry: string; // 3D 메쉬 데이터
-  materials: {
-    skin: string;
-    hair: string;
+  selectedItems: ClothingItem[];
+  generatedImageUrl: string;
+  aiDescription: string;
+  styleAnalysis: {
+    overall: string;
+    coordination: string;
+    recommendations: string[];
   };
-  animations: string[];
+  createdAt: string;
 }
 
-export type ClothingCategoryType = 'tops' | 'bottoms' | 'shoes' | 'accessories' | 'outerwear'; 
+export interface GitHubIssue {
+  number: number;
+  title: string;
+  body: string;
+  labels: string[];
+  url: string;
+  createdAt: string;
+}
+
+export type AppStep = 'settings' | 'gender' | 'bodyType' | 'profile' | 'items' | 'outfit';
+
+export interface AppState {
+  currentStep: AppStep;
+  aiSettings?: AISettings;
+  userProfile?: UserProfile;
+  selectedGender?: Gender;
+  selectedBodyType?: BodyType;
+  clothingItems: ClothingItem[];
+  selectedItems: ClothingItem[];
+  generatedOutfits: OutfitGeneration[];
+  isLoading: boolean;
+  error?: string;
+}
+
+export interface ClothingItemForm {
+  name: string;
+  brand: string;
+  category: ClothingCategoryType;
+  price: number;
+  originalUrl: string;
+  description: string;
+  colors: string[];
+  sizes: string[];
+  tags?: string[];
+}
+
+export interface SettingsForm {
+  openaiApiKey: string;
+  model: 'gpt-4' | 'gpt-4-turbo' | 'dall-e-3';
+}
+
+export interface ImageAnalysisResult {
+  name: string;
+  brand: string;
+  category: ClothingCategoryType;
+  description: string;
+  estimatedPrice: number;
+  colors: string[];
+  tags: string[];
+}
+
+export interface OutfitRecommendation {
+  description: string;
+  styleAnalysis: string;
+  recommendations: string[];
+  reasoning: string;
+} 
