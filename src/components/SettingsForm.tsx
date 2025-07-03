@@ -10,8 +10,7 @@ const settingsSchema = z.object({
   openaiApiKey: z.string()
     .min(1, 'API Key를 입력해주세요')
     .min(10, 'API Key가 너무 짧습니다')
-    .startsWith('sk-', 'OpenAI API Key는 sk-로 시작해야 합니다'),
-  model: z.enum(['gpt-4', 'gpt-4-turbo', 'dall-e-3'] as const)
+    .startsWith('sk-', 'OpenAI API Key는 sk-로 시작해야 합니다')
 });
 
 interface SettingsFormProps {
@@ -32,8 +31,7 @@ export default function SettingsForm({ onSubmit, initialSettings, className }: S
   } = useForm<SettingsFormType>({
     resolver: zodResolver(settingsSchema),
     defaultValues: {
-      openaiApiKey: initialSettings?.openaiApiKey || '',
-      model: initialSettings?.model || 'gpt-4'
+      openaiApiKey: initialSettings?.openaiApiKey || ''
     },
     mode: 'onChange'
   });
@@ -49,6 +47,7 @@ export default function SettingsForm({ onSubmit, initialSettings, className }: S
       
       onSubmit({
         ...data,
+        model: 'gpt-4', // 기본 모델로 설정
         maxTokens: 4000
       });
     } catch (error) {
@@ -134,48 +133,19 @@ export default function SettingsForm({ onSubmit, initialSettings, className }: S
           )}
         </div>
 
-        {/* 모델 선택 */}
-        <div className="space-y-3">
-          <label className="block text-sm font-medium text-gray-700">
-            AI 모델
-          </label>
-          
-          <div className="grid grid-cols-1 gap-2">
-            {[
-              { value: 'gpt-4', label: 'GPT-4', desc: '가장 정확한 분석' },
-              { value: 'gpt-4-turbo', label: 'GPT-4 Turbo', desc: '빠르고 효율적' },
-              { value: 'dall-e-3', label: 'DALL-E 3', desc: '이미지 생성 특화' }
-            ].map((model) => (
-              <label 
-                key={model.value}
-                className={cn(
-                  'flex items-center p-3 border rounded-xl cursor-pointer transition-all',
-                  'hover:bg-gray-50 hover:border-gray-300'
-                )}
-              >
-                <input
-                  {...register('model')}
-                  type="radio"
-                  value={model.value}
-                  className="sr-only"
-                />
-                <div className="flex-1">
-                  <div className="font-medium text-sm text-gray-900">{model.label}</div>
-                  <div className="text-xs text-gray-500">{model.desc}</div>
-                </div>
-                <div className={cn(
-                  'w-4 h-4 border-2 rounded-full transition-all',
-                  watch('model') === model.value
-                    ? 'border-blue-500 bg-blue-500'
-                    : 'border-gray-300'
-                )}>
-                  {watch('model') === model.value && (
-                    <div className="w-full h-full bg-white rounded-full scale-50"></div>
-                  )}
-                </div>
-              </label>
-            ))}
+        {/* AI 모델 정보 */}
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <h4 className="font-medium text-blue-900 text-sm mb-2">
+            🤖 사용되는 AI 모델
+          </h4>
+          <div className="text-xs text-blue-800 space-y-1">
+            <div>• <strong>의상 분석:</strong> GPT-4 (정확한 상품 정보 추출)</div>
+            <div>• <strong>코디 추천:</strong> GPT-4 Turbo (빠른 스타일링 분석)</div>
+            <div>• <strong>이미지 생성:</strong> DALL-E 3 (고품질 착장 이미지)</div>
           </div>
+          <p className="text-xs text-blue-700 mt-2">
+            각 기능에 최적화된 모델이 자동으로 선택됩니다.
+          </p>
         </div>
 
         {/* API Key 가이드 */}

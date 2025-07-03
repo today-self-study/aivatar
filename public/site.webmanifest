@@ -1,7 +1,7 @@
 {
-  "name": "AIVATAR - AI 기반 3D 코디 추천 플랫폼",
+  "name": "AIVATAR - AI 기반 맞춤 코디 추천 플랫폼",
   "short_name": "AIVATAR",
-  "description": "나만의 3D 아바타를 만들고 개인 맞춤형 코디를 추천받으세요",
+  "description": "AI를 활용한 개인 맞춤형 코디 추천 서비스",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

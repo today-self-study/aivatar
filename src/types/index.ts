@@ -115,7 +115,6 @@ export interface ClothingItemForm {
 
 export interface SettingsForm {
   openaiApiKey: string;
-  model: 'gpt-4' | 'gpt-4-turbo' | 'dall-e-3';
 }
 
 export interface ImageAnalysisResult {

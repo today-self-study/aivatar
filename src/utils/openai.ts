@@ -45,7 +45,7 @@ export class OpenAIUtils {
 `;
 
       const response = await this.openai.chat.completions.create({
-        model: this.config.model === 'dall-e-3' ? 'gpt-4' : this.config.model,
+        model: 'gpt-4',
         messages: [
           {
             role: 'system',
@@ -123,7 +123,7 @@ ${itemsInfo}
 `;
 
       const response = await this.openai.chat.completions.create({
-        model: this.config.model === 'dall-e-3' ? 'gpt-4' : this.config.model,
+        model: 'gpt-4-turbo',
         messages: [
           {
             role: 'system',
@@ -212,7 +212,7 @@ Clean background, no text or logos.
   async testConnection(): Promise<boolean> {
     try {
       const response = await this.openai.chat.completions.create({
-        model: this.config.model === 'dall-e-3' ? 'gpt-4' : this.config.model,
+        model: 'gpt-4',
         messages: [
           {
             role: 'user',

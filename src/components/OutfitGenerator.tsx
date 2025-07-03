@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toast } from 'react-hot-toast';
 import { Sparkles, User, Shirt, Palette, Download, Share2, RefreshCw } from 'lucide-react';
 import { cn } from '../utils';
 import type { UserProfile, ClothingItem, OutfitGeneration } from '../types';
@@ -66,39 +67,65 @@ export default function OutfitGenerator({
     setCurrentStep(0);
 
     try {
-      // 단계별 진행 시뮬레이션
-      for (let i = 0; i < steps.length; i++) {
-        setCurrentStep(i);
-        setProgress((i + 1) / steps.length * 100);
-        
-        // 실제로는 OpenAI API 호출
-        await new Promise(resolve => setTimeout(resolve, 2000));
+      const { getOpenAI } = await import('../utils/openai');
+      const openaiUtils = getOpenAI();
+      
+      if (!openaiUtils) {
+        toast.error('AI 설정을 먼저 완료해주세요');
+        return;
       }
 
-      // Mock 생성 결과
-      const mockOutfit: OutfitGeneration = {
-        id: Date.now().toString(),
+      // 단계 1: 사용자 정보 분석
+      setCurrentStep(0);
+      setProgress(25);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // 단계 2: 의류 아이템 분석
+      setCurrentStep(1);
+      setProgress(50);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // 단계 3: 코디네이션 계산 (실제 AI 추천)
+      setCurrentStep(2);
+      setProgress(75);
+      
+      const outfitRecommendation = await openaiUtils.generateOutfitRecommendation(
+        userProfile,
+        selectedItems
+      );
+
+      // 단계 4: 착장 이미지 생성 (실제 DALL-E 3)
+      setCurrentStep(3);
+      setProgress(90);
+      
+      const generatedImageUrl = await openaiUtils.generateOutfitImage(
+        userProfile,
+        selectedItems
+      );
+
+      setProgress(100);
+
+      const generatedOutfit: OutfitGeneration = {
+        id: `outfit-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         userProfile,
         selectedItems,
-        generatedImageUrl: '/api/placeholder/400/600', // 실제로는 DALL-E 3 생성 이미지
-        aiDescription: `${userProfile.gender === 'male' ? '남성' : '여성'} ${userProfile.bodyType.name} 체형에 완벽하게 어울리는 세련된 코디네이션입니다. 선택하신 아이템들이 조화롭게 어우러져 ${userProfile.height}cm 키에 최적화된 실루엣을 만들어냅니다.`,
+        generatedImageUrl,
+        aiDescription: outfitRecommendation.description,
         styleAnalysis: {
-          overall: '캐주얼 시크',
-          coordination: '상하 색상 대비가 돋보이는 균형감 있는 스타일링',
-          recommendations: [
-            '선택한 상의의 컬러가 피부톤과 잘 어울립니다',
-            '하의 핏이 체형에 매우 적합합니다',
-            '전체적으로 트렌디하면서도 실용적인 코디입니다'
-          ]
+          overall: outfitRecommendation.styleAnalysis,
+          coordination: outfitRecommendation.reasoning,
+          recommendations: outfitRecommendation.recommendations
         },
         createdAt: new Date().toISOString()
       };
 
-      setGeneratedOutfit(mockOutfit);
-      onGenerate(mockOutfit);
+      setGeneratedOutfit(generatedOutfit);
+      onGenerate(generatedOutfit);
+      toast.success('AI 코디 생성이 완료되었습니다!');
       
     } catch (error) {
       console.error('Outfit generation failed:', error);
+      toast.error(error instanceof Error ? error.message : 'AI 코디 생성에 실패했습니다');
     } finally {
       setIsGenerating(false);
     }

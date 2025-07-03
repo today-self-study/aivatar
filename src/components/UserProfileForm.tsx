@@ -66,7 +66,7 @@ export default function UserProfileForm({
           </div>
           <h2 className="text-2xl font-bold text-gray-900">신체 정보 입력</h2>
           <p className="text-gray-600 mt-2">
-            정확한 3D 아바타 생성을 위해 신체 정보를 입력해주세요.
+            AI 코디 추천을 위해 신체 정보를 입력해주세요.
           </p>
         </div>
 
@@ -211,17 +211,17 @@ export default function UserProfileForm({
           {isSubmitting ? (
             <div className="flex items-center justify-center gap-2">
               <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              아바타 생성 중...
+              프로필 저장 중...
             </div>
           ) : (
-            '3D 아바타 생성하기'
+            '프로필 저장하고 의상 추가하기'
           )}
         </button>
 
         {/* 도움말 텍스트 */}
         <div className="text-center text-sm text-gray-500">
           <p>
-            입력한 정보는 3D 아바타 생성에만 사용되며,<br />
+            입력한 정보는 AI 코디 추천에만 사용되며,<br />
             브라우저에 안전하게 저장됩니다.
           </p>
         </div>

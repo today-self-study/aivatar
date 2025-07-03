@@ -107,10 +107,38 @@ export default function ClothingItemForm({ onSubmit, onCancel, className }: Clot
 
     setIsAnalyzing(true);
     try {
-      // URL 기반 간단한 분석 (실제 AI 분석 대신 URL 패턴 분석)
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // 실제 OpenAI API를 통한 분석
+      const { getOpenAI } = await import('../utils/openai');
+      const openaiUtils = getOpenAI();
       
-      // URL에서 도메인 추출 및 기본 정보 추정
+      if (!openaiUtils) {
+        toast.error('AI 설정을 먼저 완료해주세요');
+        return;
+      }
+
+      const result = await openaiUtils.analyzeClothingFromUrl(watchedUrl);
+      
+      setAnalysisResult(result);
+      
+      // 폼에 자동 입력
+      setValue('name', result.name);
+      setValue('brand', result.brand);
+      setValue('category', result.category);
+      setValue('description', result.description);
+      setValue('price', result.estimatedPrice);
+      setValue('tags', result.tags);
+      
+      // 색상 자동 선택
+      setSelectedColors(result.colors);
+      setValue('colors', result.colors);
+      
+      toast.success('AI 분석이 완료되었습니다!');
+      
+    } catch (error) {
+      console.error('Analysis failed:', error);
+      toast.error(error instanceof Error ? error.message : 'AI 분석에 실패했습니다');
+      
+      // 실패 시 기본 URL 패턴 분석으로 폴백
       const url = watchedUrl.toLowerCase();
       let estimatedBrand = '브랜드명';
       let estimatedCategory: 'tops' | 'bottoms' | 'outerwear' | 'shoes' | 'accessories' = 'tops';
@@ -127,27 +155,9 @@ export default function ClothingItemForm({ onSubmit, onCancel, className }: Clot
       else if (url.includes('shoe') || url.includes('sneaker') || url.includes('boot')) estimatedCategory = 'shoes';
       else if (url.includes('bag') || url.includes('watch') || url.includes('accessory')) estimatedCategory = 'accessories';
 
-      const mockResult: ImageAnalysisResult = {
-        name: '상품명을 입력해주세요',
-        brand: estimatedBrand,
-        category: estimatedCategory,
-        description: '상품에 대한 설명을 입력해주세요',
-        estimatedPrice: 0,
-        colors: ['화이트'],
-        tags: ['기본템']
-      };
-
-      setAnalysisResult(mockResult);
+      setValue('brand', estimatedBrand);
+      setValue('category', estimatedCategory);
       
-      // 폼에 자동 입력 (일부만)
-      setValue('brand', mockResult.brand);
-      setValue('category', mockResult.category);
-      
-      toast.success('URL 분석이 완료되었습니다. 나머지 정보를 입력해주세요.');
-      
-    } catch (error) {
-      console.error('Analysis failed:', error);
-      toast.error('URL 분석에 실패했습니다. 수동으로 입력해주세요.');
     } finally {
       setIsAnalyzing(false);
     }
