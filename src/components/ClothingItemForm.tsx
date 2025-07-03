@@ -101,84 +101,61 @@ export default function ClothingItemForm({ onSubmit, onCancel, className }: Clot
   const watchedUrl = watch('originalUrl');
 
   const analyzeWithAI = async () => {
-    if (!watchedUrl) {
-      toast.error('URL을 먼저 입력해주세요');
+    if (!watchedUrl.trim()) {
+      toast.error('URL을 입력해주세요');
       return;
     }
 
     setIsAnalyzing(true);
-    setAnalysisProgress('웹페이지 내용을 가져오는 중...');
-    
+    setAnalysisProgress('');
+
     try {
-      // 실제 OpenAI API를 통한 분석
-      const { getOpenAI } = await import('../utils/openai');
-      const openaiUtils = getOpenAI();
+      // 브라우저 스크린샷 기능 안내
+      toast.success('브라우저에서 화면 공유를 허용해주세요', { duration: 4000 });
       
-      if (!openaiUtils) {
+      const { getOpenAI } = await import('../utils/openai');
+      const openAIUtils = getOpenAI();
+      
+      if (!openAIUtils) {
         toast.error('AI 설정을 먼저 완료해주세요');
         return;
       }
 
-      setAnalysisProgress('AI가 상품 정보를 분석하는 중...');
-      const result = await openaiUtils.analyzeClothingFromUrl(watchedUrl, (progress) => {
-        setAnalysisProgress(progress);
+      const result = await openAIUtils.analyzeClothingFromUrl(watchedUrl, (message) => {
+        setAnalysisProgress(message);
       });
-      
-      setAnalysisResult(result);
-      setAnalysisProgress('분석 결과를 적용하는 중...');
-      
-      // 폼에 자동 입력
-      setValue('name', result.name);
-      setValue('brand', result.brand);
-      setValue('category', result.category);
-      setValue('description', result.description);
-      setValue('price', result.estimatedPrice);
-      setValue('tags', result.tags);
-      
-      // 색상 자동 선택
-      setSelectedColors(result.colors);
-      setValue('colors', result.colors);
-      
-      setAnalysisProgress('');
-      toast.success('AI 분석이 완료되었습니다!');
-      
-    } catch (error) {
-      console.error('Analysis failed:', error);
-      setAnalysisProgress('');
-      
-      const errorMessage = error instanceof Error ? error.message : 'AI 분석에 실패했습니다';
-      toast.error(errorMessage);
-      
-      // 실패 시 기본 URL 패턴 분석으로 폴백
-      try {
-        setAnalysisProgress('URL 패턴을 분석하는 중...');
-        const url = watchedUrl.toLowerCase();
-        let estimatedBrand = '브랜드명';
-        let estimatedCategory: 'tops' | 'bottoms' | 'outerwear' | 'shoes' | 'accessories' = 'tops';
-        
-        if (url.includes('uniqlo')) estimatedBrand = '유니클로';
-        else if (url.includes('zara')) estimatedBrand = '자라';
-        else if (url.includes('hm') || url.includes('h&m')) estimatedBrand = 'H&M';
-        else if (url.includes('musinsa')) estimatedBrand = '무신사';
-        else if (url.includes('nike')) estimatedBrand = '나이키';
-        else if (url.includes('adidas')) estimatedBrand = '아디다스';
-        
-        if (url.includes('pants') || url.includes('jean') || url.includes('trouser')) estimatedCategory = 'bottoms';
-        else if (url.includes('jacket') || url.includes('coat') || url.includes('outer')) estimatedCategory = 'outerwear';
-        else if (url.includes('shoe') || url.includes('sneaker') || url.includes('boot')) estimatedCategory = 'shoes';
-        else if (url.includes('bag') || url.includes('watch') || url.includes('accessory')) estimatedCategory = 'accessories';
 
-        setValue('brand', estimatedBrand);
-        setValue('category', estimatedCategory);
-        
-        setAnalysisProgress('');
-        toast.success('URL 패턴 분석이 완료되었습니다. 나머지 정보를 입력해주세요.');
-        
-      } catch (fallbackError) {
-        setAnalysisProgress('');
-        toast.error('URL 분석에 실패했습니다. 수동으로 입력해주세요.');
+      if (result.category && result.category !== 'unknown') {
+        setValue('category', result.category);
+        toast.success('AI 분석 완료!');
       }
-      
+
+      if (result.details) {
+        // 분석 결과를 폼에 자동 입력
+        if (result.details.name && !watch('name')) {
+          setValue('name', result.details.name);
+        }
+        if (result.details.brand && !watch('brand')) {
+          setValue('brand', result.details.brand);
+        }
+        if (result.details.price && !watch('price')) {
+          setValue('price', result.details.price);
+        }
+        if (result.details.color && !selectedColors.includes(result.details.color)) {
+          setSelectedColors([result.details.color]);
+          setValue('colors', [result.details.color]);
+        }
+        if (result.details.size && !selectedSizes.includes(result.details.size)) {
+          setSelectedSizes([result.details.size]);
+          setValue('sizes', [result.details.size]);
+        }
+        
+        toast.success('상품 정보가 자동으로 입력되었습니다!');
+      }
+    } catch (error) {
+      console.error('AI 분석 오류:', error);
+      const errorMessage = error instanceof Error ? error.message : 'AI 분석 중 오류가 발생했습니다';
+      toast.error(errorMessage);
     } finally {
       setIsAnalyzing(false);
       setAnalysisProgress('');

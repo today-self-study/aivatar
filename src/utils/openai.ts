@@ -27,61 +27,82 @@ export class OpenAIUtils {
 
   async analyzeClothingFromUrl(url: string, onProgress?: (message: string) => void): Promise<ImageAnalysisResult> {
     try {
-      // 1단계: 웹페이지 스크린샷 촬영
-      onProgress?.('웹페이지를 로딩하고 스크린샷을 촬영하는 중...');
+      // 1단계: 사용자 브라우저에서 스크린샷 촬영
+      onProgress?.('상품 페이지를 열고 스크린샷을 준비하는 중...');
       
       let screenshotBase64 = '';
       
       try {
-        // 웹 스크린샷 API 서비스 사용
-        const screenshotServices = [
-          `https://api.screenshotapi.net/screenshot?token=DEMO&url=${encodeURIComponent(url)}&width=1200&height=800&output=base64`,
-          `https://htmlcsstoimage.com/demo_run?url=${encodeURIComponent(url)}&width=1200&height=800`,
-          `https://api.urlbox.io/v1/demo/png?url=${encodeURIComponent(url)}&width=1200&height=800`,
-        ];
+        // 사용자에게 페이지를 열어달라고 안내
+        onProgress?.('새 탭에서 상품 페이지를 열어주세요...');
         
-        for (const serviceUrl of screenshotServices) {
-          try {
-            console.log(`스크린샷 서비스 시도: ${serviceUrl}`);
-            const response = await fetch(serviceUrl, {
-              headers: {
-                'Accept': 'application/json, image/png, */*',
-              }
-            });
-            
-            if (response.ok) {
-              const contentType = response.headers.get('content-type');
-              
-              if (contentType?.includes('application/json')) {
-                const data = await response.json();
-                if (data.base64 || data.screenshot) {
-                  screenshotBase64 = data.base64 || data.screenshot;
-                  console.log('스크린샷 촬영 성공 (JSON)');
-                  break;
-                }
-              } else if (contentType?.includes('image/')) {
-                // 이미지 응답을 base64로 변환
-                const arrayBuffer = await response.arrayBuffer();
-                const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-                screenshotBase64 = base64;
-                console.log('스크린샷 촬영 성공 (이미지)');
-                break;
-              }
-            }
-          } catch (serviceError) {
-            console.warn(`스크린샷 서비스 실패: ${serviceUrl}`, serviceError);
-            continue;
-          }
+        // 새 탭으로 상품 페이지 열기
+        const newTab = window.open(url, '_blank');
+        if (!newTab) {
+          throw new Error('팝업이 차단되었습니다. 팝업을 허용하고 다시 시도해주세요.');
         }
+        
+        // 페이지 로딩 대기
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        onProgress?.('화면 캡처를 시작합니다. 브라우저에서 상품 페이지 탭을 선택해주세요...');
+        
+        // Screen Capture API로 스크린샷 촬영
+        const stream = await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            width: { ideal: 1200 },
+            height: { ideal: 800 }
+          }
+        });
+        
+        onProgress?.('화면을 캡처하는 중...');
+        
+        // 비디오 스트림을 캔버스로 변환
+        const video = document.createElement('video');
+        video.srcObject = stream;
+        video.play();
+        
+        // 비디오가 재생되면 캔버스에 그리기
+        await new Promise((resolve) => {
+          video.onloadedmetadata = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            
+            const ctx = canvas.getContext('2d');
+            ctx?.drawImage(video, 0, 0);
+            
+            // base64로 변환
+            screenshotBase64 = canvas.toDataURL('image/png').split(',')[1];
+            
+            // 스트림 정리
+            stream.getTracks().forEach(track => track.stop());
+            
+            // 새 탭 닫기
+            newTab.close();
+            
+            resolve(void 0);
+          };
+        });
         
         if (!screenshotBase64) {
-          throw new Error('모든 스크린샷 서비스 실패');
+          throw new Error('스크린샷 캡처 실패');
         }
-      } catch (screenshotError) {
-        console.warn('스크린샷 촬영 실패, 텍스트 분석으로 대체:', screenshotError);
         
-        // 스크린샷 실패 시 기존 텍스트 분석 방식으로 폴백
-        return await this.analyzeWithTextContent(url, onProgress);
+        onProgress?.('스크린샷 캡처 완료!');
+        
+      } catch (screenshotError) {
+        console.warn('브라우저 스크린샷 실패, 대체 방법 시도:', screenshotError);
+        
+        // 브라우저 스크린샷 실패 시 iframe + html2canvas 시도
+        try {
+          onProgress?.('iframe을 사용한 스크린샷을 시도하는 중...');
+          screenshotBase64 = await this.captureWithIframe(url);
+        } catch (iframeError) {
+          console.warn('iframe 스크린샷도 실패, 텍스트 분석으로 대체:', iframeError);
+          // 모든 스크린샷 방법 실패 시 텍스트 분석으로 폴백
+          return await this.analyzeWithTextContent(url, onProgress);
+        }
       }
 
       // 2단계: GPT-4o Vision으로 이미지 분석
@@ -506,6 +527,60 @@ Clean background, no text or logos.
       console.error('OpenAI connection test failed:', error);
       return false;
     }
+  }
+
+  // iframe을 사용한 스크린샷 캡처 (폴백 방법)
+  private async captureWithIframe(url: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      try {
+        // iframe 생성
+        const iframe = document.createElement('iframe');
+        iframe.src = url;
+        iframe.style.width = '1200px';
+        iframe.style.height = '800px';
+        iframe.style.position = 'absolute';
+        iframe.style.left = '-9999px';
+        iframe.style.top = '-9999px';
+        
+        document.body.appendChild(iframe);
+        
+        iframe.onload = async () => {
+          try {
+            // html2canvas가 있다면 사용 (없으면 에러)
+            if (typeof (window as any).html2canvas !== 'undefined') {
+              if (!iframe.contentDocument?.body) {
+                throw new Error('iframe 콘텐츠에 접근할 수 없습니다');
+              }
+              const canvas = await (window as any).html2canvas(iframe.contentDocument.body);
+              const base64 = canvas.toDataURL('image/png').split(',')[1];
+              document.body.removeChild(iframe);
+              resolve(base64);
+            } else {
+              throw new Error('html2canvas 라이브러리가 필요합니다');
+            }
+          } catch (error) {
+            document.body.removeChild(iframe);
+            reject(error);
+          }
+        };
+        
+        iframe.onerror = () => {
+          document.body.removeChild(iframe);
+          reject(new Error('iframe 로딩 실패'));
+        };
+        
+        // 타임아웃 설정
+        setTimeout(() => {
+          if (document.body.contains(iframe)) {
+            document.body.removeChild(iframe);
+            reject(new Error('iframe 로딩 타임아웃'));
+          }
+        }, 10000);
+        
+      } catch (error) {
+        reject(error);
+      }
+    });
   }
 }
 

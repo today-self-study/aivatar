@@ -120,11 +120,19 @@ export interface SettingsForm {
 export interface ImageAnalysisResult {
   name: string;
   brand: string;
-  category: ClothingCategoryType;
+  category: ClothingCategoryType | 'unknown';
   description: string;
   estimatedPrice: number;
   colors: string[];
   tags: string[];
+  details?: {
+    name?: string;
+    brand?: string;
+    price?: number;
+    color?: string;
+    size?: string;
+    description?: string;
+  };
 }
 
 export interface OutfitRecommendation {
