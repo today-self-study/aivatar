@@ -1,7 +1,7 @@
 {
-  "name": "AIVATAR - AI 기반 맞춤 코디 추천 플랫폼",
+  "name": "AIVATAR - AI 착장 생성 & 스타일링 플랫폼",
   "short_name": "AIVATAR",
-  "description": "AI를 활용한 개인 맞춤형 코디 추천 서비스",
+  "description": "AI가 생성하는 완벽한 착장! 개인 맞춤형 의상 분석과 전문적인 패션 포토그래피 스타일의 착장 생성 서비스",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
@@ -9,7 +9,23 @@
   "orientation": "portrait-primary",
   "scope": "/",
   "lang": "ko-KR",
-  "categories": ["fashion", "lifestyle", "personalization"],
+  "categories": ["fashion", "lifestyle", "personalization", "ai", "photography"],
+  "screenshots": [
+    {
+      "src": "/screenshots/desktop.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "AI 착장 생성 메인 화면"
+    },
+    {
+      "src": "/screenshots/mobile.png", 
+      "sizes": "375x667",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "모바일 착장 분석 화면"
+    }
+  ],
   "icons": [
     {
       "src": "/icons/icon-72x72.png",
