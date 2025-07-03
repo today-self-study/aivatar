@@ -9,7 +9,7 @@ interface ClothingListProps {
   selectedCategory: ClothingCategoryType | 'all';
   onCategoryChange: (category: ClothingCategoryType | 'all') => void;
   onItemSelect: (item: ClothingItem) => void;
-  selectedItems: ClothingItem[];
+  selectedItems: Record<ClothingCategoryType, ClothingItem | null>;
   className?: string;
 }
 
@@ -27,14 +27,19 @@ export default function ClothingList({
     : clothingItems.filter(item => item.category.id === selectedCategory);
 
   const isItemSelected = (item: ClothingItem) => {
-    return selectedItems.some(selected => selected.id === item.id);
+    const categoryId = item.category.id as ClothingCategoryType;
+    return selectedItems[categoryId]?.id === item.id;
   };
+
+  // 선택된 아이템들을 배열로 변환
+  const selectedItemsArray = Object.values(selectedItems).filter(Boolean) as ClothingItem[];
 
   return (
     <div className={cn('w-full', className)}>
       {/* 카테고리 필터 */}
       <div className="mb-6">
         <h2 className="text-xl font-bold mb-4">의류 아이템</h2>
+        <p className="text-gray-600 mb-4">각 카테고리에서 하나씩만 선택할 수 있습니다</p>
         
         <div className="flex flex-wrap gap-2">
           <button
@@ -54,13 +59,18 @@ export default function ClothingList({
               key={category.id}
               onClick={() => onCategoryChange(category.id as ClothingCategoryType)}
               className={cn(
-                'px-4 py-2 rounded-lg font-medium transition-colors',
+                'px-4 py-2 rounded-lg font-medium transition-colors relative',
                 selectedCategory === category.id
                   ? 'bg-primary-500 text-white'
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               )}
             >
               {category.displayName}
+              {selectedItems[category.id as ClothingCategoryType] && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center text-xs text-white">
+                  ✓
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -176,19 +186,34 @@ export default function ClothingList({
       </div>
 
       {/* 선택된 아이템들 요약 */}
-      {selectedItems.length > 0 && (
+      {selectedItemsArray.length > 0 && (
         <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-          <h4 className="font-semibold mb-2">선택한 아이템 ({selectedItems.length}개)</h4>
-          <div className="flex flex-wrap gap-2">
-            {selectedItems.map((item) => (
-              <div key={item.id} className="bg-white px-3 py-1 rounded-full text-sm border">
-                {item.name}
-              </div>
-            ))}
+          <h4 className="font-semibold mb-2">선택한 아이템 ({selectedItemsArray.length}개)</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {clothingCategories.map((category) => {
+              const selectedItem = selectedItems[category.id as ClothingCategoryType];
+              return (
+                <div key={category.id} className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-sm">
+                    {category.id === 'tops' && '👕'}
+                    {category.id === 'bottoms' && '👖'}
+                    {category.id === 'shoes' && '👟'}
+                    {category.id === 'accessories' && '⌚'}
+                    {category.id === 'outerwear' && '🧥'}
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">{category.displayName}</div>
+                    <div className="text-xs text-gray-500">
+                      {selectedItem ? selectedItem.name : '선택하지 않음'}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          <div className="mt-2 text-right">
+          <div className="mt-4 text-right">
             <span className="text-lg font-bold text-primary-600">
-              총 {formatPrice(selectedItems.reduce((sum, item) => sum + item.price, 0))}
+              총 {formatPrice(selectedItemsArray.reduce((sum, item) => sum + item.price, 0))}
             </span>
           </div>
         </div>

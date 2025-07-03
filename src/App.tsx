@@ -16,7 +16,13 @@ function App() {
   const [selectedGender, setSelectedGender] = useState<Gender | null>(null)
   const [selectedBodyType, setSelectedBodyType] = useState<BodyType | null>(null)
   const [userProfile, setUserProfile] = useLocalStorage<UserProfile | null>('userProfile', null)
-  const [selectedClothing, setSelectedClothing] = useLocalStorage<ClothingItem[]>('selectedClothing', [])
+  const [selectedClothing, setSelectedClothing] = useLocalStorage<Record<ClothingCategoryType, ClothingItem | null>>('selectedClothing', {
+    tops: null,
+    bottoms: null,
+    shoes: null,
+    accessories: null,
+    outerwear: null
+  })
   const [selectedCategory, setSelectedCategory] = useState<ClothingCategoryType | 'all'>('all')
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
 
@@ -36,12 +42,14 @@ function App() {
   }
 
   const handleClothingSelect = (item: ClothingItem) => {
+    const categoryId = item.category.id as ClothingCategoryType
+    
     setSelectedClothing(prev => {
-      const exists = prev.find(existing => existing.id === item.id)
-      if (exists) {
-        return prev.filter(existing => existing.id !== item.id)
-      } else {
-        return [...prev, item]
+      const isCurrentlySelected = prev[categoryId]?.id === item.id
+      
+      return {
+        ...prev,
+        [categoryId]: isCurrentlySelected ? null : item
       }
     })
   }
@@ -51,7 +59,13 @@ function App() {
     setSelectedGender(null)
     setSelectedBodyType(null)
     setUserProfile(null)
-    setSelectedClothing([])
+    setSelectedClothing({
+      tops: null,
+      bottoms: null,
+      shoes: null,
+      accessories: null,
+      outerwear: null
+    })
     setSelectedCategory('all')
   }
 
@@ -318,7 +332,7 @@ function App() {
                     <div className="w-full h-96 bg-gray-100 rounded-lg">
                       <Avatar3D 
                         userProfile={userProfile} 
-                        outfit={[]} 
+                        selectedClothing={selectedClothing}
                         className="w-full h-full"
                       />
                     </div>
@@ -343,20 +357,22 @@ function App() {
                     <div className="w-full h-80 bg-gray-100 rounded-lg">
                       <Avatar3D 
                         userProfile={userProfile} 
-                        outfit={[]} 
+                        selectedClothing={selectedClothing}
                         className="w-full h-full"
                       />
                     </div>
                     
-                    {selectedClothing.length > 0 && (
+                    {selectedClothing.tops && selectedClothing.bottoms && selectedClothing.shoes && (
                       <div className="mt-4 p-3 bg-gray-50 rounded-lg">
                         <h4 className="font-medium mb-2">착용 중인 아이템</h4>
                         <div className="space-y-1">
-                          {selectedClothing.map((item) => (
-                            <div key={item.id} className="flex items-center gap-2 text-sm">
-                              <div className="w-2 h-2 bg-primary-500 rounded-full" />
-                              {item.name}
-                            </div>
+                          {Object.entries(selectedClothing).map(([_, item]) => (
+                            item && (
+                              <div key={item.id} className="flex items-center gap-2 text-sm">
+                                <div className="w-2 h-2 bg-primary-500 rounded-full" />
+                                {item.name}
+                              </div>
+                            )
                           ))}
                         </div>
                       </div>

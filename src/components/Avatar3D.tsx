@@ -2,11 +2,11 @@ import { useRef, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
-import type { UserProfile, WardrobeItem, Gender } from '../types';
+import type { UserProfile, ClothingItem, ClothingCategoryType, Gender } from '../types';
 
 interface Avatar3DProps {
   userProfile: UserProfile;
-  outfit: WardrobeItem[];
+  selectedClothing?: Record<ClothingCategoryType, ClothingItem | null>;
   className?: string;
 }
 
@@ -15,9 +15,10 @@ interface RealisticAvatarProps {
   bodyType: string;
   height: number;
   weight: number;
+  selectedClothing?: Record<ClothingCategoryType, ClothingItem | null>;
 }
 
-function RealisticAvatar({ gender, bodyType, height, weight }: RealisticAvatarProps) {
+function RealisticAvatar({ gender, bodyType, height, weight, selectedClothing }: RealisticAvatarProps) {
   const groupRef = useRef<THREE.Group>(null);
   
   useFrame((state) => {
@@ -83,6 +84,73 @@ function RealisticAvatar({ gender, bodyType, height, weight }: RealisticAvatarPr
 
   const ratios = getBodyRatios();
 
+  // 선택된 의류에 따른 재질 및 색상 정의
+  const getClothingMaterial = (category: ClothingCategoryType, defaultColor: string) => {
+    if (!selectedClothing?.[category]) {
+      return useMemo(() => new THREE.MeshPhongMaterial({
+        color: defaultColor,
+        shininess: 10
+      }), [defaultColor]);
+    }
+
+    const item = selectedClothing[category];
+    let materialColor = defaultColor;
+    
+    // 색상 매핑
+    if (item?.colors && item.colors.length > 0) {
+      const colorName = item.colors[0];
+      switch (colorName) {
+        case '화이트':
+          materialColor = '#FFFFFF';
+          break;
+        case '블랙':
+          materialColor = '#000000';
+          break;
+        case '네이비':
+          materialColor = '#1B2951';
+          break;
+        case '그레이':
+          materialColor = '#808080';
+          break;
+        case '베이지':
+          materialColor = '#F5F5DC';
+          break;
+        case '브라운':
+          materialColor = '#8B4513';
+          break;
+        case '연청':
+          materialColor = '#6495ED';
+          break;
+        case '진청':
+          materialColor = '#1E3A8A';
+          break;
+        case '로즈골드':
+          materialColor = '#E8B4B8';
+          break;
+        case '골드':
+          materialColor = '#FFD700';
+          break;
+        case '실버':
+          materialColor = '#C0C0C0';
+          break;
+        case '올리브':
+          materialColor = '#808000';
+          break;
+        default:
+          materialColor = defaultColor;
+      }
+    }
+
+    return useMemo(() => {
+      const material = new THREE.MeshPhongMaterial({
+        color: materialColor,
+        shininess: category === 'shoes' ? 20 : category === 'accessories' ? 50 : 10
+      });
+      
+      return material;
+    }, [materialColor, category]);
+  };
+
   // 피부색과 재질 정의
   const skinColor = '#F4C2A1';
   const skinMaterial = useMemo(() => new THREE.MeshPhongMaterial({ 
@@ -91,20 +159,10 @@ function RealisticAvatar({ gender, bodyType, height, weight }: RealisticAvatarPr
     specular: 0x111111
   }), []);
 
-  const clothingMaterial = useMemo(() => new THREE.MeshPhongMaterial({
-    color: '#E0E0E0',
-    shininess: 10
-  }), []);
-
-  const pantsMaterial = useMemo(() => new THREE.MeshPhongMaterial({
-    color: '#4A90E2',
-    shininess: 5
-  }), []);
-
-  const shoeMaterial = useMemo(() => new THREE.MeshPhongMaterial({
-    color: '#2C3E50',
-    shininess: 20
-  }), []);
+  const clothingMaterial = getClothingMaterial('tops', '#E0E0E0');
+  const pantsMaterial = getClothingMaterial('bottoms', '#4A90E2');
+  const shoeMaterial = getClothingMaterial('shoes', '#2C3E50');
+  const outerwearMaterial = getClothingMaterial('outerwear', '#2C3E50');
 
   // 머리 생성 함수
   const createHead = () => {
@@ -149,6 +207,44 @@ function RealisticAvatar({ gender, bodyType, height, weight }: RealisticAvatarPr
         <sphereGeometry args={[0.18, 16, 16]} />
       </mesh>
     );
+  };
+
+  // 외투 생성 함수 (선택된 경우에만)
+  const createOuterwear = () => {
+    if (!selectedClothing?.outerwear) return null;
+    
+    return (
+      <mesh position={[0, 1.15 * ratios.overall, 0]} material={outerwearMaterial} scale={[ratios.chest * 1.1, 0.8 * ratios.torsoLength, 0.8]}>
+        <sphereGeometry args={[0.22, 16, 16]} />
+      </mesh>
+    );
+  };
+
+  // 액세서리 생성 함수 (선택된 경우에만)
+  const createAccessories = () => {
+    if (!selectedClothing?.accessories) return null;
+    
+    const accessory = selectedClothing.accessories;
+    
+    // 시계인 경우
+    if (accessory.name.includes('시계')) {
+      return (
+        <mesh position={[-0.1, 0.5 * ratios.overall, 0]} material={getClothingMaterial('accessories', '#C0C0C0')}>
+          <cylinderGeometry args={[0.02, 0.02, 0.01, 16]} />
+        </mesh>
+      );
+    }
+    
+    // 가방인 경우
+    if (accessory.name.includes('가방')) {
+      return (
+        <mesh position={[0.3, 0.8 * ratios.overall, 0]} material={getClothingMaterial('accessories', '#8B4513')}>
+          <boxGeometry args={[0.08, 0.12, 0.05]} />
+        </mesh>
+      );
+    }
+    
+    return null;
   };
 
   // 다리 생성 함수
@@ -222,7 +318,8 @@ function RealisticAvatar({ gender, bodyType, height, weight }: RealisticAvatarPr
   };
 
   return (
-    <group ref={groupRef} scale={[1, 1, 1]}>
+    <group ref={groupRef}>
+      {/* 기본 신체 부위 */}
       {createHead()}
       {createNeck()}
       {createTorso()}
@@ -234,38 +331,51 @@ function RealisticAvatar({ gender, bodyType, height, weight }: RealisticAvatarPr
       {createArm('right')}
       {createFoot('left')}
       {createFoot('right')}
+      
+      {/* 선택된 의류 아이템들 */}
+      {createOuterwear()}
+      {createAccessories()}
     </group>
   );
 }
 
-export default function Avatar3D({ userProfile, outfit: _outfit, className }: Avatar3DProps) {
+export default function Avatar3D({ userProfile, selectedClothing, className }: Avatar3DProps) {
   return (
-    <div className={`w-full h-full ${className}`}>
-      <Canvas camera={{ position: [0, 0, 3], fov: 50 }}>
-        <ambientLight intensity={0.4} />
-        <directionalLight position={[10, 10, 5]} intensity={1.0} />
-        <directionalLight position={[-10, 10, 5]} intensity={0.5} />
-        <pointLight position={[5, 5, 5]} intensity={0.3} />
-        <pointLight position={[-5, -5, -5]} intensity={0.2} />
+    <div className={className}>
+      <Canvas
+        camera={{
+          position: [0, 0, 3],
+          fov: 50,
+          near: 0.1,
+          far: 1000
+        }}
+      >
+        <color attach="background" args={['#f0f0f0']} />
         
+        {/* 조명 설정 */}
+        <ambientLight intensity={0.6} />
+        <directionalLight position={[5, 10, 5]} intensity={0.8} castShadow />
+        <pointLight position={[-5, 5, -5]} intensity={0.4} />
+        
+        {/* 3D 아바타 */}
         <RealisticAvatar
           gender={userProfile.gender}
           bodyType={userProfile.bodyType.id}
           height={userProfile.height}
           weight={userProfile.weight}
+          selectedClothing={selectedClothing}
         />
         
-        <OrbitControls 
+        {/* 카메라 컨트롤 */}
+        <OrbitControls
+          enablePan={false}
           enableZoom={true}
-          enablePan={true}
           enableRotate={true}
-          minDistance={1.5}
+          minDistance={2}
           maxDistance={5}
-          minPolarAngle={Math.PI / 6}
-          maxPolarAngle={Math.PI - Math.PI / 6}
+          minPolarAngle={Math.PI / 4}
+          maxPolarAngle={Math.PI / 2}
         />
-        
-        <gridHelper args={[10, 10, '#CCCCCC', '#CCCCCC']} position={[0, -0.7, 0]} />
       </Canvas>
     </div>
   );
