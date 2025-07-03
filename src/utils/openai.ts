@@ -25,138 +25,100 @@ export class OpenAIUtils {
     });
   }
 
-  async analyzeClothingFromUrl(url: string): Promise<ImageAnalysisResult> {
+  async analyzeClothingFromUrl(url: string, onProgress?: (message: string) => void): Promise<ImageAnalysisResult> {
     try {
-      // 1단계: 웹페이지 내용 가져오기
-      let pageContent = '';
-      let productInfo = '';
+      // 1단계: 웹페이지 스크린샷 촬영
+      onProgress?.('웹페이지를 로딩하고 스크린샷을 촬영하는 중...');
+      
+      let screenshotBase64 = '';
       
       try {
-        // CORS 문제를 우회하기 위해 여러 방법 시도
-        let response;
+        // 웹 스크린샷 API 서비스 사용
+        const screenshotServices = [
+          `https://api.screenshotapi.net/screenshot?token=DEMO&url=${encodeURIComponent(url)}&width=1200&height=800&output=base64`,
+          `https://htmlcsstoimage.com/demo_run?url=${encodeURIComponent(url)}&width=1200&height=800`,
+          `https://api.urlbox.io/v1/demo/png?url=${encodeURIComponent(url)}&width=1200&height=800`,
+        ];
         
-        // 1. 직접 fetch 시도
-        try {
-          response = await fetch(url, {
-            method: 'GET',
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            },
-          });
-        } catch (directError) {
-          console.warn('Direct fetch failed, trying proxy services:', directError);
-          
-          // 2. 공개 프록시 서비스들 시도
-          const proxyServices = [
-            `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
-            `https://corsproxy.io/?${encodeURIComponent(url)}`,
-            `https://cors-anywhere.herokuapp.com/${url}`,
-          ];
-          
-          for (const proxyUrl of proxyServices) {
-            try {
-              console.log(`Trying proxy: ${proxyUrl}`);
-              response = await fetch(proxyUrl, {
-                headers: {
-                  'X-Requested-With': 'XMLHttpRequest',
-                }
-              });
+        for (const serviceUrl of screenshotServices) {
+          try {
+            console.log(`스크린샷 서비스 시도: ${serviceUrl}`);
+            const response = await fetch(serviceUrl, {
+              headers: {
+                'Accept': 'application/json, image/png, */*',
+              }
+            });
+            
+            if (response.ok) {
+              const contentType = response.headers.get('content-type');
               
-              if (response.ok) {
-                console.log(`Proxy successful: ${proxyUrl}`);
+              if (contentType?.includes('application/json')) {
+                const data = await response.json();
+                if (data.base64 || data.screenshot) {
+                  screenshotBase64 = data.base64 || data.screenshot;
+                  console.log('스크린샷 촬영 성공 (JSON)');
+                  break;
+                }
+              } else if (contentType?.includes('image/')) {
+                // 이미지 응답을 base64로 변환
+                const arrayBuffer = await response.arrayBuffer();
+                const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+                screenshotBase64 = base64;
+                console.log('스크린샷 촬영 성공 (이미지)');
                 break;
               }
-            } catch (proxyError) {
-              console.warn(`Proxy failed: ${proxyUrl}`, proxyError);
-              continue;
             }
+          } catch (serviceError) {
+            console.warn(`스크린샷 서비스 실패: ${serviceUrl}`, serviceError);
+            continue;
           }
         }
         
-        if (response && response.ok) {
-          let responseText = await response.text();
-          
-          // allorigins 응답 처리
-          if (responseText.includes('"contents"')) {
-            try {
-              const jsonResponse = JSON.parse(responseText);
-              responseText = jsonResponse.contents;
-            } catch (e) {
-              // JSON 파싱 실패 시 원본 사용
-            }
-          }
-          
-          pageContent = responseText;
-          
-          // HTML에서 상품 정보 추출
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(pageContent, 'text/html');
-          
-          // 상품명, 가격, 설명 등 추출
-          const title = doc.querySelector('title')?.textContent || 
-                       doc.querySelector('h1')?.textContent ||
-                       doc.querySelector('[class*="title"], [class*="name"], [class*="product"]')?.textContent || '';
-          
-          const price = doc.querySelector('[class*="price"], [class*="cost"], [class*="won"]')?.textContent || '';
-          
-          const description = doc.querySelector('[class*="description"], [class*="detail"], [name="description"]')?.getAttribute('content') ||
-                            doc.querySelector('meta[property="og:description"]')?.getAttribute('content') || '';
-          
-          const brand = doc.querySelector('[class*="brand"], [class*="maker"]')?.textContent ||
-                       doc.querySelector('meta[property="og:site_name"]')?.getAttribute('content') || '';
-          
-          productInfo = `
-상품 페이지 정보:
-- 페이지 제목: ${title}
-- 가격 정보: ${price}
-- 브랜드: ${brand}
-- 상품 설명: ${description}
-- URL: ${url}
-
-추가 HTML 메타데이터:
-${doc.querySelector('meta[name="keywords"]')?.getAttribute('content') || ''}
-${doc.querySelector('meta[property="og:title"]')?.getAttribute('content') || ''}
-`;
+        if (!screenshotBase64) {
+          throw new Error('모든 스크린샷 서비스 실패');
         }
-      } catch (fetchError) {
-        console.warn('Direct fetch failed, using URL pattern analysis:', fetchError);
+      } catch (screenshotError) {
+        console.warn('스크린샷 촬영 실패, 텍스트 분석으로 대체:', screenshotError);
         
-        // fetch 실패 시 URL 패턴 분석으로 대체
-        productInfo = `
-URL 패턴 분석: ${url}
-
-도메인 기반 추정:
-- 쇼핑몰: ${this.extractShoppingMall(url)}
-- 카테고리 추정: ${this.extractCategoryFromUrl(url)}
-`;
+        // 스크린샷 실패 시 기존 텍스트 분석 방식으로 폴백
+        return await this.analyzeWithTextContent(url, onProgress);
       }
 
-      // 2단계: GPT에 상품 정보 분석 요청
+      // 2단계: GPT-4o Vision으로 이미지 분석
+      onProgress?.('AI가 상품 이미지를 분석하는 중...');
+      
       const prompt = `
-다음 쇼핑몰 상품 정보를 분석해서 의류 정보를 추출해주세요:
+이 쇼핑몰 웹페이지 스크린샷을 분석하여 의류 상품 정보를 추출해주세요.
 
-${productInfo}
+웹페이지 URL: ${url}
+
+다음 정보를 정확하게 분석해주세요:
+1. 상품 이미지에서 보이는 의류의 종류와 스타일
+2. 페이지에 표시된 상품명, 브랜드명
+3. 가격 정보 (할인가가 있다면 할인가 우선)
+4. 상품 설명이나 특징
+5. 색상 옵션들
+6. 카테고리 (상의/하의/아우터/신발/액세서리)
 
 아래 JSON 형식으로 정확하게 응답해주세요:
 {
   "name": "상품명",
   "brand": "브랜드명",
   "category": "tops|bottoms|outerwear|shoes|accessories 중 하나",
-  "description": "상품 설명",
+  "description": "상품 설명 (스타일, 소재, 특징 포함)",
   "estimatedPrice": 가격숫자,
   "colors": ["색상1", "색상2"],
-  "tags": ["태그1", "태그2"]
+  "tags": ["태그1", "태그2", "태그3"]
 }
 
-규칙:
-1. 상품명은 간결하게 정리해주세요
-2. 브랜드명이 명확하지 않으면 쇼핑몰명을 사용해주세요
-3. 카테고리는 반드시 지정된 5개 중 하나를 선택해주세요
-4. 가격은 숫자만 추출해주세요 (원화 기준)
-5. 색상은 한국어로 표현해주세요
-6. 태그는 스타일, 시즌, 특징 등을 포함해주세요
+분석 지침:
+- 이미지에서 실제로 보이는 상품을 기준으로 분석
+- 카테고리는 상품 이미지와 설명을 종합하여 정확히 분류
+- 가격은 페이지에 표시된 숫자에서 추출 (원화 기준)
+- 색상은 이미지에서 보이는 색상과 옵션에서 제공되는 색상 모두 고려
+- 태그는 스타일, 시즌, 소재, 용도 등을 포함
 
-한국어로 응답하고, JSON 형식을 정확히 지켜주세요.
+반드시 JSON 형식만 응답하고, 다른 설명은 포함하지 마세요.
 `;
 
       const response = await this.openai.chat.completions.create({
@@ -164,15 +126,27 @@ ${productInfo}
         messages: [
           {
             role: 'system',
-            content: '당신은 패션 전문가입니다. 제공된 웹페이지 정보를 분석하여 의류 정보를 정확하게 추출해주세요. 반드시 JSON 형식으로만 응답해주세요.'
+            content: '당신은 전문 패션 분석가입니다. 쇼핑몰 웹페이지 스크린샷을 정확하게 분석하여 의류 상품 정보를 JSON 형식으로 추출해주세요. 이미지의 모든 시각적 정보와 텍스트 정보를 종합적으로 고려하여 가장 정확한 결과를 제공해주세요.'
           },
           {
             role: 'user',
-            content: prompt
+            content: [
+              {
+                type: 'text',
+                text: prompt
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:image/png;base64,${screenshotBase64}`,
+                  detail: 'high'
+                }
+              }
+            ]
           }
         ],
-        max_tokens: this.config.maxTokens || 1000,
-        temperature: 0.3
+        max_tokens: 1500,
+        temperature: 0.2
       });
 
       const content = response.choices[0]?.message?.content;
@@ -221,6 +195,115 @@ ${productInfo}
       // 모든 분석 실패 시 URL 기반 기본값 반환
       return this.createFallbackAnalysis(url);
     }
+  }
+
+  // 텍스트 기반 분석 (스크린샷 실패 시 폴백)
+  private async analyzeWithTextContent(url: string, _onProgress?: (message: string) => void): Promise<ImageAnalysisResult> {
+    // 기존 텍스트 분석 로직 유지
+    let productInfo = '';
+    
+    try {
+      // CORS 문제를 우회하기 위해 여러 방법 시도
+      let response;
+      
+      // 1. 직접 fetch 시도
+      try {
+        response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          },
+        });
+      } catch (directError) {
+        console.warn('Direct fetch failed, trying proxy services:', directError);
+        
+        // 2. 공개 프록시 서비스들 시도
+        const proxyServices = [
+          `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+          `https://corsproxy.io/?${encodeURIComponent(url)}`,
+        ];
+        
+        for (const proxyUrl of proxyServices) {
+          try {
+            response = await fetch(proxyUrl, {
+              headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            if (response.ok) break;
+          } catch (proxyError) {
+            continue;
+          }
+        }
+      }
+      
+      if (response && response.ok) {
+        let responseText = await response.text();
+        
+        // allorigins 응답 처리
+        if (responseText.includes('"contents"')) {
+          try {
+            const jsonResponse = JSON.parse(responseText);
+            responseText = jsonResponse.contents;
+          } catch (e) {
+            // JSON 파싱 실패 시 원본 사용
+          }
+        }
+        
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(responseText, 'text/html');
+        
+        const title = doc.querySelector('title')?.textContent?.trim() || '';
+        const description = doc.querySelector('meta[name="description"]')?.getAttribute('content') || '';
+        
+        productInfo = `
+URL: ${url}
+제목: ${title}
+설명: ${description}
+`;
+      }
+    } catch (error) {
+      console.warn('텍스트 분석도 실패:', error);
+    }
+    
+    // 기본 GPT 분석
+    const prompt = `
+다음 쇼핑몰 정보를 분석해주세요:
+${productInfo}
+
+JSON 형식으로 응답해주세요:
+{
+  "name": "상품명",
+  "brand": "브랜드명", 
+  "category": "tops",
+  "description": "상품 설명",
+  "estimatedPrice": 50000,
+  "colors": ["기타"],
+  "tags": ["일반"]
+}
+`;
+
+    try {
+      const response = await this.openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: '쇼핑몰 정보를 분석하여 JSON 형식으로 응답해주세요.' },
+          { role: 'user', content: prompt }
+        ],
+        max_tokens: 1000,
+        temperature: 0.3
+      });
+
+      const content = response.choices[0]?.message?.content;
+      if (content) {
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          return JSON.parse(jsonMatch[0]) as ImageAnalysisResult;
+        }
+      }
+    } catch (error) {
+      console.error('텍스트 기반 GPT 분석 실패:', error);
+    }
+    
+    return this.createFallbackAnalysis(url);
   }
 
   // URL에서 쇼핑몰명 추출

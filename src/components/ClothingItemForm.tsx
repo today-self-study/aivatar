@@ -120,7 +120,9 @@ export default function ClothingItemForm({ onSubmit, onCancel, className }: Clot
       }
 
       setAnalysisProgress('AI가 상품 정보를 분석하는 중...');
-      const result = await openaiUtils.analyzeClothingFromUrl(watchedUrl);
+      const result = await openaiUtils.analyzeClothingFromUrl(watchedUrl, (progress) => {
+        setAnalysisProgress(progress);
+      });
       
       setAnalysisResult(result);
       setAnalysisProgress('분석 결과를 적용하는 중...');
