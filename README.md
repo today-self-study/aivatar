@@ -2,6 +2,12 @@
 
 3D 마네킹 기반 코디 추천 PWA 어플리케이션
 
+## 🌐 Live Demo
+
+**배포 완료!** 아래 링크에서 실제 서비스를 체험해보세요:
+
+**🔗 [https://today-self-study.github.io/aivatar/](https://today-self-study.github.io/aivatar/)**
+
 ## 🎯 프로젝트 개요
 
 Aivatar는 사용자의 체형과 신체 정보를 기반으로 3D 아바타를 생성하고, 실제 의류 상품을 가상으로 착용해볼 수 있는 혁신적인 패션 코디네이션 서비스입니다.
@@ -18,7 +24,7 @@ Aivatar는 사용자의 체형과 신체 정보를 기반으로 3D 아바타를 
 
 - **Frontend**: React 19 + TypeScript
 - **Build Tool**: Vite
-- **Styling**: TailwindCSS
+- **Styling**: TailwindCSS 3.x
 - **3D Graphics**: Three.js + React Three Fiber
 - **PWA**: Vite PWA Plugin
 - **Icons**: Lucide React
@@ -49,7 +55,7 @@ Aivatar는 사용자의 체형과 신체 정보를 기반으로 3D 아바타를 
 
 ```bash
 # 저장소 클론
-git clone https://github.com/your-username/aivatar.git
+git clone https://github.com/today-self-study/aivatar.git
 cd aivatar
 
 # 의존성 설치
@@ -129,13 +135,27 @@ VitePWA({
 }
 ```
 
+## 📈 개발 과정
+
+### 해결된 주요 이슈
+- **TailwindCSS 4.x 호환성 문제**: TailwindCSS 3.x로 다운그레이드 및 PostCSS 설정 수정
+- **PWA 빌드 오류**: 올바른 플러그인 설정으로 해결
+- **GitHub Pages 배포**: base URL 설정 및 빌드 최적화 완료
+
+### 기술적 성과
+- ✅ 완전한 PWA 구현 (오프라인 지원, 홈화면 추가)
+- ✅ 성능 최적화 (번들 크기 최적화, 코드 분할)
+- ✅ 반응형 디자인 및 모바일 최적화
+- ✅ TypeScript 완전 지원
+
 ## 🛣️ 로드맵
 
-### v1.0 (현재)
+### v1.0 (현재) ✅
 - [x] 기본 3D 아바타 생성
 - [x] 체형 선택 기능
 - [x] 의류 아이템 목록
 - [x] PWA 지원
+- [x] GitHub Pages 배포
 
 ### v1.1 (계획)
 - [ ] 실제 의류 텍스처 매핑
@@ -165,10 +185,10 @@ VitePWA({
 
 프로젝트에 대한 문의사항이 있으시면 다음 방법으로 연락주세요:
 
-- GitHub Issues: [https://github.com/your-username/aivatar/issues](https://github.com/your-username/aivatar/issues)
-- Email: your-email@example.com
+- GitHub Issues: [https://github.com/today-self-study/aivatar/issues](https://github.com/today-self-study/aivatar/issues)
+- Repository: [https://github.com/today-self-study/aivatar](https://github.com/today-self-study/aivatar)
 
-## �� 감사의 말
+## 🙏 감사의 말
 
 - Three.js 커뮤니티
 - React Three Fiber 개발팀
@@ -177,4 +197,4 @@ VitePWA({
 
 ---
 
-Made with ❤️ by [Your Name]
+Made with ❤️ by today-self-study
