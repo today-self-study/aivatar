@@ -47,7 +47,7 @@ export default function SettingsForm({ onSubmit, initialSettings, className }: S
       
       onSubmit({
         ...data,
-        model: 'gpt-4', // 기본 모델로 설정
+        model: 'gpt-4o', // 기본 모델로 설정
         maxTokens: 4000
       });
     } catch (error) {
@@ -139,8 +139,8 @@ export default function SettingsForm({ onSubmit, initialSettings, className }: S
             🤖 사용되는 AI 모델
           </h4>
           <div className="text-xs text-blue-800 space-y-1">
-            <div>• <strong>의상 분석:</strong> GPT-4 (정확한 상품 정보 추출)</div>
-            <div>• <strong>코디 추천:</strong> GPT-4 Turbo (빠른 스타일링 분석)</div>
+            <div>• <strong>의상 분석:</strong> GPT-4o (정확한 상품 정보 추출)</div>
+            <div>• <strong>코디 추천:</strong> GPT-4o (빠른 스타일링 분석)</div>
             <div>• <strong>이미지 생성:</strong> DALL-E 3 (고품질 착장 이미지)</div>
           </div>
           <p className="text-xs text-blue-700 mt-2">

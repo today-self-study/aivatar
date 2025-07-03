@@ -59,7 +59,7 @@ export interface ClothingItem {
 
 export interface AISettings {
   openaiApiKey: string;
-  model: 'gpt-4' | 'gpt-4-turbo' | 'dall-e-3';
+  model: 'gpt-4o' | 'gpt-4o-mini' | 'dall-e-3';
   maxTokens: number;
 }
 

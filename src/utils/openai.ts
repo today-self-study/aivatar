@@ -9,7 +9,7 @@ import type {
 
 interface OpenAIUtilsConfig {
   apiKey: string;
-  model: 'gpt-4' | 'gpt-4-turbo' | 'dall-e-3';
+  model: 'gpt-4o' | 'gpt-4o-mini' | 'dall-e-3';
   maxTokens?: number;
 }
 
@@ -45,7 +45,7 @@ export class OpenAIUtils {
 `;
 
       const response = await this.openai.chat.completions.create({
-        model: 'gpt-4',
+        model: 'gpt-4o',
         messages: [
           {
             role: 'system',
@@ -123,7 +123,7 @@ ${itemsInfo}
 `;
 
       const response = await this.openai.chat.completions.create({
-        model: 'gpt-4-turbo',
+        model: 'gpt-4o',
         messages: [
           {
             role: 'system',
@@ -204,25 +204,24 @@ Clean background, no text or logos.
       return imageUrl;
     } catch (error) {
       console.error('Failed to generate outfit image:', error);
-      // 실패 시 플레이스홀더 이미지 반환
-      return 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjYwMCIgdmlld0JveD0iMCAwIDQwMCA2MDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iNjAwIiBmaWxsPSIjRjNGNEY2Ii8+CjxjaXJjbGUgY3g9IjIwMCIgY3k9IjEwMCIgcj0iNDAiIGZpbGw9IiNEMUQ1REIiLz4KPHJlY3QgeD0iMTUwIiB5PSIxNTAiIHdpZHRoPSIxMDAiIGhlaWdodD0iMTUwIiBmaWxsPSIjRDFENURCIi8+CjxyZWN0IHg9IjE2MCIgeT0iMzEwIiB3aWR0aD0iMzAiIGhlaWdodD0iMTIwIiBmaWxsPSIjRDFENURCIi8+CjxyZWN0IHg9IjIxMCIgeT0iMzEwIiB3aWR0aD0iMzAiIGhlaWdodD0iMTIwIiBmaWxsPSIjRDFENURCIi8+CjxyZWN0IHg9IjEyMCIgeT0iMTgwIiB3aWR0aD0iMjAiIGhlaWdodD0iODAiIGZpbGw9IiNEMUQ1REIiLz4KPHJlY3QgeD0iMjYwIiB5PSIxODAiIHdpZHRoPSIyMCIgaGVpZ2h0PSI4MCIgZmlsbD0iI0QxRDVEQiIvPgo8dGV4dCB4PSIyMDAiIHk9IjQ4MCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjE2IiBmaWxsPSIjNjM3MEI0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5BSSBHZW5lcmF0ZWQgT3V0Zml0PC90ZXh0Pgo8L3N2Zz4K';
+      throw new Error('코디 이미지 생성에 실패했습니다.');
     }
   }
 
   async testConnection(): Promise<boolean> {
     try {
       const response = await this.openai.chat.completions.create({
-        model: 'gpt-4',
+        model: 'gpt-4o-mini',
         messages: [
           {
             role: 'user',
-            content: 'Hello! Please respond with "Connection successful"'
+            content: 'Hello, this is a test message.'
           }
         ],
         max_tokens: 10
       });
 
-      return response.choices[0]?.message?.content?.includes('successful') || false;
+      return !!response.choices[0]?.message?.content;
     } catch (error) {
       console.error('OpenAI connection test failed:', error);
       return false;
@@ -230,34 +229,32 @@ Clean background, no text or logos.
   }
 }
 
-// 전역 인스턴스 관리
+// Global instance
 let openaiInstance: OpenAIUtils | null = null;
 
 export function initializeOpenAI(settings: AISettings) {
   openaiInstance = new OpenAIUtils({
     apiKey: settings.openaiApiKey,
-    model: settings.model,
-    maxTokens: settings.maxTokens
+    model: 'gpt-4o'
   });
 }
 
 export function getOpenAI(): OpenAIUtils {
   if (!openaiInstance) {
-    throw new Error('OpenAI가 초기화되지 않았습니다. 설정을 먼저 완료해주세요.');
+    throw new Error('OpenAI not initialized. Please call initializeOpenAI first.');
   }
   return openaiInstance;
 }
 
 export async function validateApiKey(apiKey: string): Promise<boolean> {
   try {
-    const tempUtils = new OpenAIUtils({
+    const testInstance = new OpenAIUtils({
       apiKey,
-      model: 'gpt-4',
-      maxTokens: 10
+      model: 'gpt-4o-mini'
     });
-    
-    return await tempUtils.testConnection();
+    return await testInstance.testConnection();
   } catch (error) {
+    console.error('API key validation failed:', error);
     return false;
   }
 } 
