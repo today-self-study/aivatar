@@ -1,62 +1,97 @@
-# AIVATAR - AI 기반 맞춤 코디 추천 플랫폼
+# AIVATAR - AI 착장 생성 & 스타일링 플랫폼
 
-[![Version](https://img.shields.io/badge/Version-1.0.0-brightgreen.svg)](https://github.com/today-self-study/aivatar/releases)
+[![Version](https://img.shields.io/badge/Version-1.1.0-brightgreen.svg)](https://github.com/today-self-study/aivatar/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![React](https://img.shields.io/badge/React-19.1.0-blue.svg)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8.3-blue.svg)](https://www.typescriptlang.org/)
-[![Vite](https://img.shields.io/badge/Vite-7.0.0-purple.svg)](https://vitejs.dev/)
-[![OpenAI](https://img.shields.io/badge/OpenAI-API-green.svg)](https://openai.com/)
+[![OpenAI](https://img.shields.io/badge/OpenAI-GPT--4-green.svg)](https://openai.com/)
+[![DALL-E](https://img.shields.io/badge/DALL--E-3-orange.svg)](https://openai.com/dall-e-3)
 
-> AI를 활용한 개인 맞춤형 코디 추천 서비스. 성별, 체형, 신체 정보를 기반으로 완벽한 스타일링을 제안합니다.
+> **AI가 생성하는 완벽한 착장!** 🎨✨  
+> 개인 맞춤형 의상 분석부터 전문적인 패션 포토그래피 스타일의 착장 생성까지, 모든 것을 AI가 해결합니다.
 
-## 🌟 주요 기능
+## 🌟 핵심 기능
 
-### 🎯 6단계 맞춤 설정
-1. **AI 설정** - OpenAI API Key 설정
-2. **성별 선택** - 남성/여성 체형 특성 반영
-3. **체형 분석** - 6가지 체형 유형 (슬렌더, 애슬레틱, 펜어형, 애플형, 모래시계형, 직사각형)
-4. **신체 정보** - 키, 몸무게 입력
-5. **의상 관리** - AI 분석을 통한 의상 추가 및 컬렉션 관리
-6. **AI 코디 생성** - 선택한 의상들로 AI가 완벽한 코디 생성
+### 🤖 **AI 의상 분석 & 이미지 추출**
+- **URL 한 번으로 모든 것 완료**: 쇼핑몰 URL만 입력하면 AI가 상품 정보를 완벽 분석
+- **자동 이미지 추출**: 웹페이지에서 상품 이미지를 자동으로 찾아서 추출
+- **스마트 카테고리 분류**: 상의, 하의, 아우터, 신발, 액세서리 자동 분류
+- **브랜드 & 가격 인식**: AI가 브랜드명과 예상 가격까지 자동 분석
 
-### 🤖 AI 기반 의상 분석
-- **URL 기반 분석**: 쇼핑몰 URL을 입력하면 AI가 상품 정보 자동 추출
-- **자동 카테고리 분류**: 상의, 하의, 아우터, 신발, 액세서리 자동 분류
-- **브랜드 및 가격 추정**: AI가 브랜드명과 예상 가격 자동 분석
-- **색상 및 태그 생성**: 상품의 색상과 스타일 태그 자동 생성
+### 🎨 **전문적인 AI 착장 생성**
+- **정자세 패션 포토그래피**: 클래식하고 전문적인 정자세 스타일
+- **프로페셔널 스튜디오 품질**: 완벽한 조명과 배경으로 고품질 이미지 생성
+- **실제 의상 정보 활용**: 등록된 브랜드와 상품명을 기반으로 정확한 착장 생성
+- **최적화된 비율**: 전신 촬영에 최적화된 세로형 비율 (1024x1792)
 
-### 👗 스마트 의류 관리 시스템
-- **브라우저 캐시 저장**: 로컬 스토리지를 활용한 개인 의상 컬렉션 관리
-- **카테고리별 관리**: 상의, 하의, 신발, 아우터, 액세서리 체계적 분류
-- **다양한 색상 지원**: 화이트, 블랙, 네이비, 그레이, 베이지, 브라운 등 12가지 색상
-- **브랜드 정보**: 나이키, 아디다스, 유니클로, 자라 등 유명 브랜드 아이템 지원
+### 📱 **시각적 의상 관리**
+- **이미지 미리보기**: 모든 의상 아이템에 실제 상품 이미지 표시
+- **직관적인 컬렉션**: 카테고리별로 체계적인 의상 관리
+- **브라우저 캐시**: 개인 의상 컬렉션을 안전하게 로컬 저장
 
-### 🎨 사용자 경험
-- **반응형 디자인**: 모든 디바이스에서 최적화된 인터페이스
-- **직관적 네비게이션**: 6단계 진행 상황 표시 및 사이드바 메뉴
-- **실시간 피드백**: AI 분석 결과와 코디 추천을 즉시 확인
+### 🎯 **개인 맞춤 설정**
+- **체형 기반 분석**: 6가지 체형 유형별 맞춤 추천
+- **성별별 특화**: 남성/여성 체형 특성을 반영한 정확한 분석
+- **신체 정보 반영**: 키, 몸무게를 고려한 개인 맞춤 착장
 
-## 🚀 기술 스택
+## 🚀 라이브 데모
 
-### Frontend
-- **React 19.1.0** - 모던 React 19 기능 활용
-- **TypeScript 5.8.3** - 타입 안전성 보장
-- **Vite 7.0.0** - 빠른 개발 환경과 최적화된 번들링
-- **TailwindCSS 3.4.17** - 유틸리티 퍼스트 CSS 프레임워크
+**🌐 [AIVATAR 바로 체험하기](https://today-self-study.github.io/aivatar/)**
 
-### AI & API 통합
-- **OpenAI GPT-4** - 의상 분석 및 코디 추천 AI 모델
-- **DALL-E 3** - AI 기반 착장 이미지 생성
-- **React Hook Form** - 폼 상태 관리 및 유효성 검사
-- **Zod** - 스키마 기반 데이터 검증
+### 📸 주요 화면
 
-### 개발 도구
-- **ESLint** - 코드 품질 및 일관성 관리
-- **PostCSS** - CSS 후처리 및 최적화
-- **TypeScript Strict Mode** - 엄격한 타입 검사
+| 의상 분석 | 이미지 추출 | 착장 생성 |
+|----------|------------|----------|
+| ![의상 분석](docs/images/analysis.png) | ![이미지 추출](docs/images/extraction.png) | ![착장 생성](docs/images/generation.png) |
 
-## 📦 설치 및 실행
+## 🔥 최신 업데이트 (v1.1.0)
 
+### ✨ 새로운 기능
+- 🖼️ **상품 이미지 자동 추출**: Open Graph, Twitter Card, 상품 셀렉터 활용
+- 📱 **이미지 미리보기 UI**: 분석 결과와 의상 목록에서 실시간 이미지 표시
+- 🎨 **AI 착장 생성 고도화**: 정자세 전문 패션 포토그래피 스타일
+- 🔍 **향상된 웹페이지 분석**: 다양한 쇼핑몰 구조 대응
+
+### 🎯 개선된 사용자 경험
+- ⚡ **더 빠른 분석**: GPT-4o-mini 활용으로 텍스트 분석 속도 향상
+- 🎪 **시각적 관리**: 의상 목록에서 이미지 썸네일로 직관적 관리
+- 🎭 **현실적인 착장**: 실제 의상 정보를 활용한 정확한 AI 생성
+
+## 🛠️ 기술 스택
+
+### 🎨 Frontend
+```json
+{
+  "React": "19.1.0",
+  "TypeScript": "5.8.3", 
+  "Vite": "7.0.0",
+  "TailwindCSS": "3.4.17"
+}
+```
+
+### 🤖 AI & API
+```json
+{
+  "OpenAI GPT-4o": "의상 분석",
+  "OpenAI GPT-4o-mini": "빠른 텍스트 처리",
+  "DALL-E 3": "착장 이미지 생성",
+  "Web Scraping": "상품 이미지 추출"
+}
+```
+
+### 🔧 개발 도구
+```json
+{
+  "ESLint": "코드 품질 관리",
+  "PostCSS": "CSS 최적화",
+  "React Hook Form": "폼 상태 관리",
+  "Zod": "데이터 검증"
+}
+```
+
+## 📦 빠른 시작
+
+### 1️⃣ 설치
 ```bash
 # 저장소 복제
 git clone https://github.com/today-self-study/aivatar.git
@@ -64,220 +99,156 @@ cd aivatar
 
 # 의존성 설치
 npm install
+```
 
-# 개발 서버 실행
+### 2️⃣ 개발 서버 실행
+```bash
+# 개발 서버 시작
 npm run dev
 
+# 브라우저에서 http://localhost:5173 접속
+```
+
+### 3️⃣ 프로덕션 빌드
+```bash
 # 프로덕션 빌드
 npm run build
 
-# 빌드 미리보기
+# 빌드 결과 미리보기
 npm run preview
+```
 
+### 4️⃣ 배포
+```bash
 # GitHub Pages 배포
 npm run deploy
 ```
 
-## 📋 버전 관리
+## 📋 사용 가이드
 
-이 프로젝트는 [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다.
+### 🎯 **1단계: AI 설정**
+- OpenAI API Key 입력
+- 모든 AI 기능의 기본 설정
 
-### 현재 버전: v1.0.0
+### 👤 **2단계: 개인 정보**
+- 성별 선택 (남성/여성)
+- 체형 분석 (6가지 유형)
+- 신체 정보 입력 (키, 몸무게)
 
-### 버전 업데이트 방법
+### 👕 **3단계: 의상 추가**
+```
+🔗 쇼핑몰 URL 입력
+    ↓
+🤖 AI 자동 분석
+    ↓  
+🖼️ 이미지 자동 추출
+    ↓
+📝 정보 자동 입력
+    ↓
+✅ 의상 등록 완료
+```
+
+### 🎨 **4단계: 착장 생성**
+- 원하는 의상 아이템들 선택
+- AI가 전문적인 패션 포토그래피 스타일로 착장 생성
+- 정자세로 촬영된 고품질 이미지 제공
+
+## 🎯 체형별 맞춤 분석
+
+| 체형 | 특징 | AI 추천 스타일 |
+|------|------|----------------|
+| 🏃‍♂️ **슬렌더** | 날씬한 체형 | 볼륨감 있는 레이어드 룩 |
+| 💪 **애슬레틱** | 근육질 체형 | 핏이 좋은 테일러드 룩 |
+| 🍐 **펜어형** | 하체 발달 | 상체 포인트 A라인 룩 |
+| 🍎 **애플형** | 상체 발달 | 허리 라인 강조 룩 |
+| ⏳ **모래시계형** | 허리 잘록 | 몸매 라인 살린 핏 룩 |
+| 📐 **직사각형** | 균등한 체형 | 곡선 만들기 룩 |
+
+## 🔧 고급 설정
+
+### 🎨 AI 착장 생성 커스터마이징
+```typescript
+// 착장 생성 옵션
+const outfitOptions = {
+  pose: "정자세 (클래식 포즈)",
+  style: "전문 패션 포토그래피",
+  lighting: "프로페셔널 스튜디오",
+  background: "깔끔한 단색 배경",
+  ratio: "1024x1792 (세로형)"
+}
+```
+
+### 🖼️ 이미지 추출 설정
+```typescript
+// 이미지 추출 우선순위
+const extractionPriority = [
+  "Open Graph 이미지 (og:image)",
+  "Twitter Card 이미지",
+  "상품 이미지 셀렉터",
+  "크기 기반 필터링"
+]
+```
+
+## 📊 성능 최적화
+
+### ⚡ 빠른 로딩
+- **코드 스플리팅**: 필요한 컴포넌트만 로드
+- **이미지 지연 로딩**: 스크롤 시 이미지 로드
+- **캐시 활용**: 브라우저 로컬 스토리지 최적화
+
+### 🔄 API 최적화
+- **GPT-4o-mini**: 텍스트 분석용 빠른 모델
+- **GPT-4o**: 복잡한 의상 분석용 정확한 모델
+- **DALL-E 3**: 고품질 이미지 생성
+
+## 🌐 배포 정보
+
+- **라이브 서비스**: [https://today-self-study.github.io/aivatar/](https://today-self-study.github.io/aivatar/)
+- **배포 플랫폼**: GitHub Pages
+- **자동 배포**: `npm run deploy` 명령어
+- **PWA 지원**: 모바일 앱처럼 설치 가능
+
+## 📝 버전 관리
+
+### 현재 버전: **v1.1.0** 🎉
 
 ```bash
-# 패치 버전 업데이트 (버그 수정: 1.0.0 → 1.0.1)
-npm run version:patch
+# 버전 업데이트 명령어
+npm run version:patch   # 1.1.0 → 1.1.1 (버그 수정)
+npm run version:minor   # 1.1.0 → 1.2.0 (새 기능)
+npm run version:major   # 1.1.0 → 2.0.0 (큰 변경)
 
-# 마이너 버전 업데이트 (새 기능: 1.0.0 → 1.1.0)
-npm run version:minor
-
-# 메이저 버전 업데이트 (큰 변경사항: 1.0.0 → 2.0.0)
-npm run version:major
-
-# 버전 업데이트 후 배포
+# 버전 업데이트 후 자동 배포
 npm run deploy:version
 ```
 
-### 버전 히스토리
-버전별 상세 변경사항은 [CHANGELOG.md](./CHANGELOG.md)에서 확인할 수 있습니다.
-
-### 배포 상태 확인
-- 서비스 우측 하단에서 현재 배포된 버전과 빌드 시간을 확인할 수 있습니다
-- 각 배포마다 고유한 빌드 타임스탬프가 표시됩니다
-
-## 🌐 배포
-
-이 프로젝트는 GitHub Pages를 통해 배포됩니다.
-
-- **라이브 데모**: [https://today-self-study.github.io/aivatar/](https://today-self-study.github.io/aivatar/)
-- **배포 브랜치**: `gh-pages`
-- **배포 방식**: `npm run deploy` 명령어를 통한 수동 배포
-- **빌드 도구**: Vite를 사용한 최적화된 프로덕션 빌드
-
-## 📱 PWA 지원
-
-AIVATAR는 Progressive Web App으로 구현되어 있습니다:
-
-- **오프라인 지원**: 서비스 워커를 통한 캐싱
-- **설치 가능**: 홈 화면에 앱 아이콘 추가
-- **반응형 디자인**: 모바일 최적화
-- **푸시 알림**: 개인 맞춤 알림 (향후 구현 예정)
-
-## 🎯 사용 방법
-
-### 1. 성별 선택
-- 남성 또는 여성 선택
-- 선택한 성별에 따라 체형 특성이 달라집니다
-
-### 2. 체형 분석
-- **슬렌더**: 날씬한 체형
-- **애슬레틱**: 근육질 체형
-- **펜어형**: 하체가 발달한 체형
-- **애플형**: 상체가 발달한 체형
-- **모래시계형**: 허리가 잘록한 체형
-- **직사각형**: 전체적으로 균등한 체형
-
-### 3. 신체 정보 입력
-- 키 (cm)
-- 몸무게 (kg)
-- 개인 정보 (선택사항)
-
-### 4. 3D 아바타 확인
-- 입력한 정보를 바탕으로 생성된 개인 맞춤 3D 아바타
-- 마우스로 회전하여 다양한 각도에서 확인 가능
-
-### 5. 스타일링
-- 각 카테고리에서 원하는 의류 선택
-- 선택한 의류가 실시간으로 3D 아바타에 반영
-- 색상별 차이 확인 가능
-
-## 🔧 개발 가이드
-
-### 프로젝트 구조
-```
-aivatar/
-├── src/
-│   ├── components/          # React 컴포넌트
-│   │   ├── Avatar3D.tsx    # 3D 아바타 렌더링
-│   │   ├── GenderSelector.tsx
-│   │   ├── BodyTypeSelector.tsx
-│   │   ├── UserProfileForm.tsx
-│   │   └── ClothingList.tsx
-│   ├── data/               # 정적 데이터
-│   │   ├── bodyTypes.ts
-│   │   ├── categories.ts
-│   │   └── clothingItems.ts
-│   ├── hooks/              # 커스텀 훅
-│   │   └── useLocalStorage.ts
-│   ├── types/              # TypeScript 타입 정의
-│   │   └── index.ts
-│   ├── utils/              # 유틸리티 함수
-│   │   └── index.ts
-│   └── App.tsx             # 메인 애플리케이션
-├── public/                 # 정적 파일
-│   ├── icons/             # PWA 아이콘
-│   ├── favicon.svg        # 파비콘
-│   └── site.webmanifest   # PWA 매니페스트
-└── dist/                  # 빌드 결과물
-```
-
-### 3D 아바타 구현 세부사항
-
-#### 신체 부위별 모델링
-- **머리**: 구체 형태, 얼굴 특징 포함
-- **목**: 원통형, 성별별 길이 차이
-- **몸통**: 원통형, 성별별 가슴/허리 비율
-- **팔**: 상완, 팔꿈치, 전완, 손으로 세분화
-- **다리**: 허벅지, 무릎, 정강이, 발목, 발로 세분화
-
-#### 재질 및 조명
-- **MeshStandardMaterial**: 현실적인 반사와 그림자
-- **다중 조명**: 앰비언트, 디렉셔널, 포인트 라이트
-- **그림자 매핑**: 자연스러운 그림자 효과
-
-#### 성능 최적화
-- **useMemo**: 재질 재사용으로 렌더링 성능 최적화
-- **LOD(Level of Detail)**: 거리에 따른 세밀도 조정
-- **인스턴싱**: 반복되는 형태의 효율적 렌더링
-
-## 🎨 디자인 시스템
-
-### 색상 팔레트
-- **Primary**: `#4F46E5` (인디고)
-- **Secondary**: `#06B6D4` (시안)
-- **Accent**: `#EC4899` (핑크)
-- **Neutral**: `#6B7280` (그레이)
-
-### 타이포그래피
-- **제목**: `font-bold text-2xl`
-- **부제목**: `font-semibold text-lg`
-- **본문**: `font-medium text-base`
-- **캡션**: `font-normal text-sm`
-
-### 컴포넌트 스타일
-- **버튼**: 둥근 모서리, 호버 효과
-- **카드**: 그림자, 둥근 모서리
-- **입력 필드**: 테두리, 포커스 효과
-
-## 📊 성능 지표
-
-### 빌드 최적화
-- **코드 분할**: 동적 import를 통한 청크 분리
-- **트리 쉐이킹**: 사용하지 않는 코드 제거
-- **압축**: Gzip 압축으로 전송 크기 최적화
-
-### 3D 렌더링 성능
-- **60 FPS**: 부드러운 3D 애니메이션
-- **반응형 캔버스**: 화면 크기에 따른 해상도 조정
-- **메모리 관리**: 효율적인 geometry 및 material 관리
-
-## 🔮 향후 계획
-
-### 단기 목표
-- [ ] 더 많은 의류 브랜드 추가
-- [ ] 머리 스타일 및 헤어 색상 옵션
-- [ ] 피부 톤 선택 기능
-- [ ] 배경 환경 변경 옵션
-
-### 중기 목표
-- [ ] AI 기반 코디 추천 알고리즘
-- [ ] 사용자 계정 및 저장 기능
-- [ ] 소셜 공유 기능
-- [ ] 실제 쇼핑몰 연동
-
-### 장기 목표
-- [ ] AR/VR 지원
-- [ ] 실시간 피팅 시뮬레이션
-- [ ] 개인 맞춤 의류 추천
-- [ ] 가상 패션쇼 기능
+### 📚 변경 기록
+자세한 변경사항은 [CHANGELOG.md](./CHANGELOG.md)에서 확인하세요.
 
 ## 🤝 기여하기
 
-프로젝트에 기여하고 싶으시다면:
+1. **Fork** 저장소
+2. **Feature 브랜치** 생성 (`git checkout -b feature/amazing-feature`)
+3. **변경사항 커밋** (`git commit -m 'Add amazing feature'`)
+4. **브랜치에 Push** (`git push origin feature/amazing-feature`)
+5. **Pull Request** 생성
 
-1. 이슈를 생성하여 문제점이나 개선사항을 제안해주세요
-2. Fork 후 기능 브랜치를 만들어 개발해주세요
-3. 커밋 메시지는 명확하고 구체적으로 작성해주세요
-4. Pull Request를 생성하여 코드 리뷰를 요청해주세요
+## 📄 라이선스
 
-### 개발 가이드라인
-- TypeScript 엄격 모드 준수
-- ESLint 규칙 준수
-- 컴포넌트 단위 테스트 작성
-- 반응형 디자인 고려
+이 프로젝트는 [MIT 라이선스](LICENSE) 하에 배포됩니다.
 
-## 📄 라이센스
+## 🙋‍♂️ 지원
 
-이 프로젝트는 MIT 라이센스 하에 배포됩니다. 자세한 내용은 [LICENSE](LICENSE) 파일을 참고하세요.
-
-## 👥 팀
-
-- **개발자**: AIVATAR Team
-- **디자인**: AIVATAR Team
-- **3D 모델링**: AIVATAR Team
+- 📧 **이메일**: [support@aivatar.com](mailto:support@aivatar.com)
+- 🐛 **버그 리포트**: [GitHub Issues](https://github.com/today-self-study/aivatar/issues)
+- 💡 **기능 제안**: [GitHub Discussions](https://github.com/today-self-study/aivatar/discussions)
 
 ---
 
-💡 **AIVATAR**로 나만의 스타일을 찾아보세요! 🚀
+<div align="center">
+
+**✨ AIVATAR로 당신만의 완벽한 착장을 AI와 함께 만들어보세요! ✨**
+
+[🚀 지금 시작하기](https://today-self-study.github.io/aivatar/) | [📖 문서 보기](docs/) | [🎨 예시 보기](examples/)
+
+</div>
