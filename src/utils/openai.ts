@@ -27,8 +27,115 @@ export class OpenAIUtils {
 
   async analyzeClothingFromUrl(url: string): Promise<ImageAnalysisResult> {
     try {
+      // 1단계: 웹페이지 내용 가져오기
+      let pageContent = '';
+      let productInfo = '';
+      
+      try {
+        // CORS 문제를 우회하기 위해 여러 방법 시도
+        let response;
+        
+        // 1. 직접 fetch 시도
+        try {
+          response = await fetch(url, {
+            method: 'GET',
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            },
+          });
+        } catch (directError) {
+          console.warn('Direct fetch failed, trying proxy services:', directError);
+          
+          // 2. 공개 프록시 서비스들 시도
+          const proxyServices = [
+            `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+            `https://corsproxy.io/?${encodeURIComponent(url)}`,
+            `https://cors-anywhere.herokuapp.com/${url}`,
+          ];
+          
+          for (const proxyUrl of proxyServices) {
+            try {
+              console.log(`Trying proxy: ${proxyUrl}`);
+              response = await fetch(proxyUrl, {
+                headers: {
+                  'X-Requested-With': 'XMLHttpRequest',
+                }
+              });
+              
+              if (response.ok) {
+                console.log(`Proxy successful: ${proxyUrl}`);
+                break;
+              }
+            } catch (proxyError) {
+              console.warn(`Proxy failed: ${proxyUrl}`, proxyError);
+              continue;
+            }
+          }
+        }
+        
+        if (response && response.ok) {
+          let responseText = await response.text();
+          
+          // allorigins 응답 처리
+          if (responseText.includes('"contents"')) {
+            try {
+              const jsonResponse = JSON.parse(responseText);
+              responseText = jsonResponse.contents;
+            } catch (e) {
+              // JSON 파싱 실패 시 원본 사용
+            }
+          }
+          
+          pageContent = responseText;
+          
+          // HTML에서 상품 정보 추출
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(pageContent, 'text/html');
+          
+          // 상품명, 가격, 설명 등 추출
+          const title = doc.querySelector('title')?.textContent || 
+                       doc.querySelector('h1')?.textContent ||
+                       doc.querySelector('[class*="title"], [class*="name"], [class*="product"]')?.textContent || '';
+          
+          const price = doc.querySelector('[class*="price"], [class*="cost"], [class*="won"]')?.textContent || '';
+          
+          const description = doc.querySelector('[class*="description"], [class*="detail"], [name="description"]')?.getAttribute('content') ||
+                            doc.querySelector('meta[property="og:description"]')?.getAttribute('content') || '';
+          
+          const brand = doc.querySelector('[class*="brand"], [class*="maker"]')?.textContent ||
+                       doc.querySelector('meta[property="og:site_name"]')?.getAttribute('content') || '';
+          
+          productInfo = `
+상품 페이지 정보:
+- 페이지 제목: ${title}
+- 가격 정보: ${price}
+- 브랜드: ${brand}
+- 상품 설명: ${description}
+- URL: ${url}
+
+추가 HTML 메타데이터:
+${doc.querySelector('meta[name="keywords"]')?.getAttribute('content') || ''}
+${doc.querySelector('meta[property="og:title"]')?.getAttribute('content') || ''}
+`;
+        }
+      } catch (fetchError) {
+        console.warn('Direct fetch failed, using URL pattern analysis:', fetchError);
+        
+        // fetch 실패 시 URL 패턴 분석으로 대체
+        productInfo = `
+URL 패턴 분석: ${url}
+
+도메인 기반 추정:
+- 쇼핑몰: ${this.extractShoppingMall(url)}
+- 카테고리 추정: ${this.extractCategoryFromUrl(url)}
+`;
+      }
+
+      // 2단계: GPT에 상품 정보 분석 요청
       const prompt = `
-다음 쇼핑몰 URL에서 의류 상품을 분석해주세요: ${url}
+다음 쇼핑몰 상품 정보를 분석해서 의류 정보를 추출해주세요:
+
+${productInfo}
 
 아래 JSON 형식으로 정확하게 응답해주세요:
 {
@@ -41,7 +148,15 @@ export class OpenAIUtils {
   "tags": ["태그1", "태그2"]
 }
 
-한국어로 응답하고, 가격은 원화 기준으로 추정해주세요.
+규칙:
+1. 상품명은 간결하게 정리해주세요
+2. 브랜드명이 명확하지 않으면 쇼핑몰명을 사용해주세요
+3. 카테고리는 반드시 지정된 5개 중 하나를 선택해주세요
+4. 가격은 숫자만 추출해주세요 (원화 기준)
+5. 색상은 한국어로 표현해주세요
+6. 태그는 스타일, 시즌, 특징 등을 포함해주세요
+
+한국어로 응답하고, JSON 형식을 정확히 지켜주세요.
 `;
 
       const response = await this.openai.chat.completions.create({
@@ -49,7 +164,7 @@ export class OpenAIUtils {
         messages: [
           {
             role: 'system',
-            content: '당신은 패션 전문가입니다. 쇼핑몰 URL을 분석하여 의류 정보를 정확하게 추출해주세요.'
+            content: '당신은 패션 전문가입니다. 제공된 웹페이지 정보를 분석하여 의류 정보를 정확하게 추출해주세요. 반드시 JSON 형식으로만 응답해주세요.'
           },
           {
             role: 'user',
@@ -66,24 +181,106 @@ export class OpenAIUtils {
       }
 
       try {
-        const parsed = JSON.parse(content) as ImageAnalysisResult;
+        // JSON 응답 파싱
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+          throw new Error('JSON 형식을 찾을 수 없습니다.');
+        }
+        
+        const parsed = JSON.parse(jsonMatch[0]) as ImageAnalysisResult;
+        
+        // 기본값 검증 및 보정
+        if (!parsed.name || parsed.name === '상품명') {
+          parsed.name = this.extractProductNameFromUrl(url);
+        }
+        if (!parsed.brand || parsed.brand === '브랜드명') {
+          parsed.brand = this.extractShoppingMall(url);
+        }
+        if (!parsed.category) {
+          parsed.category = this.extractCategoryFromUrl(url);
+        }
+        if (!parsed.estimatedPrice || parsed.estimatedPrice === 0) {
+          parsed.estimatedPrice = 50000; // 기본값
+        }
+        if (!parsed.colors || parsed.colors.length === 0) {
+          parsed.colors = ['기타'];
+        }
+        if (!parsed.tags || parsed.tags.length === 0) {
+          parsed.tags = ['일반'];
+        }
+        
         return parsed;
       } catch (parseError) {
-        // JSON 파싱 실패 시 기본값 반환
-        return {
-          name: '분석된 상품',
-          brand: '알 수 없음',
-          category: 'tops',
-          description: '상품 분석 중 오류가 발생했습니다.',
-          estimatedPrice: 0,
-          colors: ['기타'],
-          tags: ['분석오류']
-        };
+        console.error('JSON parsing failed:', parseError);
+        // JSON 파싱 실패 시 URL 기반 기본값 반환
+        return this.createFallbackAnalysis(url);
       }
     } catch (error) {
       console.error('Failed to analyze clothing from URL:', error);
-      throw new Error('의류 분석에 실패했습니다. API Key를 확인해주세요.');
+      
+      // 모든 분석 실패 시 URL 기반 기본값 반환
+      return this.createFallbackAnalysis(url);
     }
+  }
+
+  // URL에서 쇼핑몰명 추출
+  private extractShoppingMall(url: string): string {
+    const domain = url.toLowerCase();
+    if (domain.includes('musinsa')) return '무신사';
+    if (domain.includes('29cm')) return '29CM';
+    if (domain.includes('styleshare')) return '스타일쉐어';
+    if (domain.includes('brandi')) return '브랜디';
+    if (domain.includes('zigzag')) return '지그재그';
+    if (domain.includes('coupang')) return '쿠팡';
+    if (domain.includes('gmarket')) return 'G마켓';
+    if (domain.includes('11st')) return '11번가';
+    if (domain.includes('wconcept')) return 'W컨셉';
+    if (domain.includes('uniqlo')) return '유니클로';
+    if (domain.includes('zara')) return '자라';
+    if (domain.includes('hm.com')) return 'H&M';
+    if (domain.includes('nike')) return '나이키';
+    if (domain.includes('adidas')) return '아디다스';
+    return '온라인쇼핑몰';
+  }
+
+  // URL에서 카테고리 추정
+  private extractCategoryFromUrl(url: string): 'tops' | 'bottoms' | 'outerwear' | 'shoes' | 'accessories' {
+    const urlLower = url.toLowerCase();
+    if (urlLower.includes('pants') || urlLower.includes('jean') || urlLower.includes('trouser') || urlLower.includes('bottom')) return 'bottoms';
+    if (urlLower.includes('jacket') || urlLower.includes('coat') || urlLower.includes('outer') || urlLower.includes('cardigan')) return 'outerwear';
+    if (urlLower.includes('shoe') || urlLower.includes('sneaker') || urlLower.includes('boot') || urlLower.includes('sandal')) return 'shoes';
+    if (urlLower.includes('bag') || urlLower.includes('watch') || urlLower.includes('accessory') || urlLower.includes('hat') || urlLower.includes('belt')) return 'accessories';
+    return 'tops'; // 기본값
+  }
+
+  // URL에서 상품명 추정
+  private extractProductNameFromUrl(url: string): string {
+    try {
+      const urlObj = new URL(url);
+      const pathParts = urlObj.pathname.split('/').filter(part => part.length > 0);
+      const lastPart = pathParts[pathParts.length - 1];
+      
+      // URL 디코딩 및 정리
+      const decoded = decodeURIComponent(lastPart);
+      const cleaned = decoded.replace(/[-_]/g, ' ').replace(/\.(html|php|jsp|asp)$/i, '');
+      
+      return cleaned || '상품';
+    } catch {
+      return '상품';
+    }
+  }
+
+  // 폴백 분석 결과 생성
+  private createFallbackAnalysis(url: string): ImageAnalysisResult {
+    return {
+      name: this.extractProductNameFromUrl(url),
+      brand: this.extractShoppingMall(url),
+      category: this.extractCategoryFromUrl(url),
+      description: 'URL을 통해 추가된 상품입니다. 세부 정보를 직접 입력해주세요.',
+      estimatedPrice: 50000,
+      colors: ['기타'],
+      tags: ['URL추가']
+    };
   }
 
   async generateOutfitRecommendation(

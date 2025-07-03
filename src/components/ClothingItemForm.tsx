@@ -80,6 +80,7 @@ export default function ClothingItemForm({ onSubmit, onCancel, className }: Clot
   const [analysisResult, setAnalysisResult] = useState<ImageAnalysisResult | null>(null);
   const [selectedColors, setSelectedColors] = useState<string[]>([]);
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
+  const [analysisProgress, setAnalysisProgress] = useState<string>('');
 
   const {
     register,
@@ -106,6 +107,8 @@ export default function ClothingItemForm({ onSubmit, onCancel, className }: Clot
     }
 
     setIsAnalyzing(true);
+    setAnalysisProgress('웹페이지 내용을 가져오는 중...');
+    
     try {
       // 실제 OpenAI API를 통한 분석
       const { getOpenAI } = await import('../utils/openai');
@@ -116,9 +119,11 @@ export default function ClothingItemForm({ onSubmit, onCancel, className }: Clot
         return;
       }
 
+      setAnalysisProgress('AI가 상품 정보를 분석하는 중...');
       const result = await openaiUtils.analyzeClothingFromUrl(watchedUrl);
       
       setAnalysisResult(result);
+      setAnalysisProgress('분석 결과를 적용하는 중...');
       
       // 폼에 자동 입력
       setValue('name', result.name);
@@ -132,34 +137,49 @@ export default function ClothingItemForm({ onSubmit, onCancel, className }: Clot
       setSelectedColors(result.colors);
       setValue('colors', result.colors);
       
+      setAnalysisProgress('');
       toast.success('AI 분석이 완료되었습니다!');
       
     } catch (error) {
       console.error('Analysis failed:', error);
-      toast.error(error instanceof Error ? error.message : 'AI 분석에 실패했습니다');
+      setAnalysisProgress('');
+      
+      const errorMessage = error instanceof Error ? error.message : 'AI 분석에 실패했습니다';
+      toast.error(errorMessage);
       
       // 실패 시 기본 URL 패턴 분석으로 폴백
-      const url = watchedUrl.toLowerCase();
-      let estimatedBrand = '브랜드명';
-      let estimatedCategory: 'tops' | 'bottoms' | 'outerwear' | 'shoes' | 'accessories' = 'tops';
-      
-      if (url.includes('uniqlo')) estimatedBrand = '유니클로';
-      else if (url.includes('zara')) estimatedBrand = '자라';
-      else if (url.includes('hm') || url.includes('h&m')) estimatedBrand = 'H&M';
-      else if (url.includes('musinsa')) estimatedBrand = '무신사';
-      else if (url.includes('nike')) estimatedBrand = '나이키';
-      else if (url.includes('adidas')) estimatedBrand = '아디다스';
-      
-      if (url.includes('pants') || url.includes('jean') || url.includes('trouser')) estimatedCategory = 'bottoms';
-      else if (url.includes('jacket') || url.includes('coat') || url.includes('outer')) estimatedCategory = 'outerwear';
-      else if (url.includes('shoe') || url.includes('sneaker') || url.includes('boot')) estimatedCategory = 'shoes';
-      else if (url.includes('bag') || url.includes('watch') || url.includes('accessory')) estimatedCategory = 'accessories';
+      try {
+        setAnalysisProgress('URL 패턴을 분석하는 중...');
+        const url = watchedUrl.toLowerCase();
+        let estimatedBrand = '브랜드명';
+        let estimatedCategory: 'tops' | 'bottoms' | 'outerwear' | 'shoes' | 'accessories' = 'tops';
+        
+        if (url.includes('uniqlo')) estimatedBrand = '유니클로';
+        else if (url.includes('zara')) estimatedBrand = '자라';
+        else if (url.includes('hm') || url.includes('h&m')) estimatedBrand = 'H&M';
+        else if (url.includes('musinsa')) estimatedBrand = '무신사';
+        else if (url.includes('nike')) estimatedBrand = '나이키';
+        else if (url.includes('adidas')) estimatedBrand = '아디다스';
+        
+        if (url.includes('pants') || url.includes('jean') || url.includes('trouser')) estimatedCategory = 'bottoms';
+        else if (url.includes('jacket') || url.includes('coat') || url.includes('outer')) estimatedCategory = 'outerwear';
+        else if (url.includes('shoe') || url.includes('sneaker') || url.includes('boot')) estimatedCategory = 'shoes';
+        else if (url.includes('bag') || url.includes('watch') || url.includes('accessory')) estimatedCategory = 'accessories';
 
-      setValue('brand', estimatedBrand);
-      setValue('category', estimatedCategory);
+        setValue('brand', estimatedBrand);
+        setValue('category', estimatedCategory);
+        
+        setAnalysisProgress('');
+        toast.success('URL 패턴 분석이 완료되었습니다. 나머지 정보를 입력해주세요.');
+        
+      } catch (fallbackError) {
+        setAnalysisProgress('');
+        toast.error('URL 분석에 실패했습니다. 수동으로 입력해주세요.');
+      }
       
     } finally {
       setIsAnalyzing(false);
+      setAnalysisProgress('');
     }
   };
 
@@ -269,10 +289,29 @@ export default function ClothingItemForm({ onSubmit, onCancel, className }: Clot
                   : 'text-gray-400'
               )}
             >
-              <Sparkles className="w-4 h-4" />
-              {isAnalyzing ? '분석중...' : 'AI 분석'}
+              {isAnalyzing ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-pink-300 border-t-pink-600 rounded-full animate-spin" />
+                  분석중...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" />
+                  AI 분석
+                </>
+              )}
             </button>
           </div>
+
+          {/* 분석 진행 상황 표시 */}
+          {analysisProgress && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-blue-300 border-t-blue-600 rounded-full animate-spin" />
+                <span className="text-sm text-blue-800">{analysisProgress}</span>
+              </div>
+            </div>
+          )}
 
           {errors.originalUrl && (
             <p className="text-red-600 text-xs mt-1 flex items-center gap-1">
