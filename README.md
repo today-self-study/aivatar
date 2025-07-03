@@ -56,7 +56,7 @@
 
 ```bash
 # 저장소 복제
-git clone https://github.com/your-username/aivatar.git
+git clone https://github.com/today-self-study/aivatar.git
 cd aivatar
 
 # 의존성 설치
@@ -70,15 +70,19 @@ npm run build
 
 # 빌드 미리보기
 npm run preview
+
+# GitHub Pages 배포
+npm run deploy
 ```
 
 ## 🌐 배포
 
-이 프로젝트는 GitHub Pages를 통해 자동 배포됩니다.
+이 프로젝트는 GitHub Pages를 통해 배포됩니다.
 
-- **라이브 데모**: [https://your-username.github.io/aivatar/](https://your-username.github.io/aivatar/)
+- **라이브 데모**: [https://today-self-study.github.io/aivatar/](https://today-self-study.github.io/aivatar/)
 - **배포 브랜치**: `gh-pages`
-- **자동 배포**: `main` 브랜치에 푸시 시 자동으로 빌드 및 배포
+- **배포 방식**: `npm run deploy` 명령어를 통한 수동 배포
+- **빌드 도구**: Vite를 사용한 최적화된 프로덕션 빌드
 
 ## 📱 PWA 지원
 
