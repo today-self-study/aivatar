@@ -16,7 +16,6 @@ import type {
 import { useLocalStorage } from './hooks/useLocalStorage'
 import { cn } from './utils'
 import { initializeOpenAI } from './utils/openai'
-import { syncWithGitHub } from './utils/github'
 
 // Components
 import SettingsForm from './components/SettingsForm'
@@ -50,20 +49,7 @@ function App() {
     }
   }, [aiSettings])
 
-  useEffect(() => {
-    const syncData = async () => {
-      if (clothingItems.length > 0 && aiSettings) {
-        try {
-          const syncedItems = await syncWithGitHub(clothingItems)
-          setClothingItems(syncedItems)
-        } catch (error) {
-          console.error('GitHub sync failed:', error)
-        }
-      }
-    }
-
-    syncData()
-  }, [clothingItems.length, aiSettings])
+  // GitHub 동기화 제거 - 브라우저 캐시만 사용
 
   const handleSettingsSubmit = (settings: AISettings) => {
     setAiSettings(settings)
@@ -87,17 +73,12 @@ function App() {
     setCurrentStep('items')
   }
 
-  const handleClothingItemAdd = async (item: ClothingItem) => {
+  const handleClothingItemAdd = (item: ClothingItem) => {
     try {
       setIsLoading(true)
       const newItems = [...clothingItems, item]
       setClothingItems(newItems)
-      toast.success('의상이 추가되었습니다!')
-      
-      if (aiSettings) {
-        const syncedItems = await syncWithGitHub(newItems)
-        setClothingItems(syncedItems)
-      }
+      // toast는 ClothingItemForm에서 처리하므로 여기서는 제거
     } catch (error) {
       console.error('Failed to add clothing item:', error)
       toast.error('의상 추가에 실패했습니다')

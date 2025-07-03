@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { toast } from 'react-hot-toast';
 import { Link, Plus, Sparkles, ShoppingBag, AlertCircle } from 'lucide-react';
 import { cn } from '../utils';
 import type { ClothingItem, ImageAnalysisResult } from '../types';
@@ -99,39 +100,54 @@ export default function ClothingItemForm({ onSubmit, onCancel, className }: Clot
   const watchedUrl = watch('originalUrl');
 
   const analyzeWithAI = async () => {
-    if (!watchedUrl) return;
+    if (!watchedUrl) {
+      toast.error('URL을 먼저 입력해주세요');
+      return;
+    }
 
     setIsAnalyzing(true);
     try {
-      // 실제로는 OpenAI API를 통해 URL 분석
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // URL 기반 간단한 분석 (실제 AI 분석 대신 URL 패턴 분석)
+      await new Promise(resolve => setTimeout(resolve, 1500));
       
-      // Mock 분석 결과
+      // URL에서 도메인 추출 및 기본 정보 추정
+      const url = watchedUrl.toLowerCase();
+      let estimatedBrand = '브랜드명';
+      let estimatedCategory: 'tops' | 'bottoms' | 'outerwear' | 'shoes' | 'accessories' = 'tops';
+      
+      if (url.includes('uniqlo')) estimatedBrand = '유니클로';
+      else if (url.includes('zara')) estimatedBrand = '자라';
+      else if (url.includes('hm') || url.includes('h&m')) estimatedBrand = 'H&M';
+      else if (url.includes('musinsa')) estimatedBrand = '무신사';
+      else if (url.includes('nike')) estimatedBrand = '나이키';
+      else if (url.includes('adidas')) estimatedBrand = '아디다스';
+      
+      if (url.includes('pants') || url.includes('jean') || url.includes('trouser')) estimatedCategory = 'bottoms';
+      else if (url.includes('jacket') || url.includes('coat') || url.includes('outer')) estimatedCategory = 'outerwear';
+      else if (url.includes('shoe') || url.includes('sneaker') || url.includes('boot')) estimatedCategory = 'shoes';
+      else if (url.includes('bag') || url.includes('watch') || url.includes('accessory')) estimatedCategory = 'accessories';
+
       const mockResult: ImageAnalysisResult = {
-        name: '오버핏 기본 티셔츠',
-        brand: '무신사 스탠다드',
-        category: 'tops',
-        description: '시원한 면 소재의 오버핏 반팔 티셔츠입니다.',
-        estimatedPrice: 29000,
-        colors: ['화이트', '블랙', '네이비'],
-        tags: ['캐주얼', '기본템', '면100%']
+        name: '상품명을 입력해주세요',
+        brand: estimatedBrand,
+        category: estimatedCategory,
+        description: '상품에 대한 설명을 입력해주세요',
+        estimatedPrice: 0,
+        colors: ['화이트'],
+        tags: ['기본템']
       };
 
       setAnalysisResult(mockResult);
       
-      // 폼에 자동 입력
-      setValue('name', mockResult.name);
+      // 폼에 자동 입력 (일부만)
       setValue('brand', mockResult.brand);
       setValue('category', mockResult.category);
-      setValue('description', mockResult.description);
-      setValue('price', mockResult.estimatedPrice);
-      setValue('colors', mockResult.colors);
-      setValue('tags', mockResult.tags);
       
-      setSelectedColors(mockResult.colors);
+      toast.success('URL 분석이 완료되었습니다. 나머지 정보를 입력해주세요.');
       
     } catch (error) {
       console.error('Analysis failed:', error);
+      toast.error('URL 분석에 실패했습니다. 수동으로 입력해주세요.');
     } finally {
       setIsAnalyzing(false);
     }
@@ -156,20 +172,42 @@ export default function ClothingItemForm({ onSubmit, onCancel, className }: Clot
   };
 
   const handleFormSubmit = (data: ClothingItemFormType) => {
+    // 유효성 검사
+    if (selectedColors.length === 0) {
+      toast.error('최소 하나의 색상을 선택해주세요');
+      return;
+    }
+    
+    if (selectedSizes.length === 0) {
+      toast.error('최소 하나의 사이즈를 선택해주세요');
+      return;
+    }
+
     const newItem: ClothingItem = {
-      id: Date.now().toString(),
+      id: `clothing-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       ...data,
-      tags: data.tags || [], // undefined일 경우 빈 배열로 설정
-      imageUrl: '', // 실제로는 이미지 URL 추출
+      colors: selectedColors,
+      sizes: selectedSizes,
+      tags: data.tags || [],
+      imageUrl: '', // 추후 이미지 업로드 기능 추가 시 사용
       createdAt: new Date().toISOString(),
-      githubIssueNumber: undefined
+      githubIssueNumber: undefined // GitHub 이슈 연동 제거
     };
 
-    onSubmit(newItem);
-    reset();
-    setSelectedColors([]);
-    setSelectedSizes([]);
-    setAnalysisResult(null);
+    try {
+      onSubmit(newItem);
+      
+      // 폼 초기화
+      reset();
+      setSelectedColors([]);
+      setSelectedSizes([]);
+      setAnalysisResult(null);
+      
+      toast.success('의상이 성공적으로 추가되었습니다!');
+    } catch (error) {
+      console.error('Failed to add clothing item:', error);
+      toast.error('의상 추가 중 오류가 발생했습니다');
+    }
   };
 
   return (
@@ -373,7 +411,7 @@ export default function ClothingItemForm({ onSubmit, onCancel, className }: Clot
         {/* 색상 선택 */}
         <div className="space-y-3">
           <label className="block text-sm font-medium text-gray-700">
-            색상
+            색상 <span className="text-red-500">*</span>
           </label>
           
           <div className="grid grid-cols-6 gap-2">
@@ -397,12 +435,18 @@ export default function ClothingItemForm({ onSubmit, onCancel, className }: Clot
               </button>
             ))}
           </div>
+          
+          {selectedColors.length > 0 && (
+            <div className="text-sm text-gray-600">
+              선택된 색상: {selectedColors.join(', ')}
+            </div>
+          )}
         </div>
 
         {/* 사이즈 선택 */}
         <div className="space-y-3">
           <label className="block text-sm font-medium text-gray-700">
-            사이즈
+            사이즈 <span className="text-red-500">*</span>
           </label>
           
           <div className="flex flex-wrap gap-2">
@@ -422,6 +466,12 @@ export default function ClothingItemForm({ onSubmit, onCancel, className }: Clot
               </button>
             ))}
           </div>
+          
+          {selectedSizes.length > 0 && (
+            <div className="text-sm text-gray-600">
+              선택된 사이즈: {selectedSizes.join(', ')}
+            </div>
+          )}
         </div>
 
         {/* 상품 설명 */}
