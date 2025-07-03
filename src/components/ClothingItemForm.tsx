@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Link, Plus, Sparkles, ShoppingBag, AlertCircle } from 'lucide-react';
 import { cn } from '../utils';
-import type { ClothingItem, ClothingCategoryType, ImageAnalysisResult } from '../types';
+import type { ClothingItem, ImageAnalysisResult } from '../types';
 
 const clothingItemSchema = z.object({
   originalUrl: z.string()

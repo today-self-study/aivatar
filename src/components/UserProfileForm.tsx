@@ -44,8 +44,7 @@ export default function UserProfileForm({
         gender: selectedGender,
         height,
         weight,
-        bodyType: selectedBodyType,
-        createdAt: new Date()
+        bodyType: selectedBodyType
       };
 
       await new Promise(resolve => setTimeout(resolve, 500)); // 로딩 효과

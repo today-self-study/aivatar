@@ -167,8 +167,7 @@ ${itemsInfo}
 
   async generateOutfitImage(
     userProfile: UserProfile,
-    selectedItems: ClothingItem[],
-    recommendation: OutfitRecommendation
+    selectedItems: ClothingItem[]
   ): Promise<string> {
     try {
       const gender = userProfile.gender === 'male' ? 'man' : 'woman';
