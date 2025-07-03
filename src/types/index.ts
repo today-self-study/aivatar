@@ -1,5 +1,8 @@
+export type Gender = 'male' | 'female';
+
 export interface UserProfile {
   id: string;
+  gender: Gender;
   height: number; // cm
   weight: number; // kg
   bodyType: BodyType;

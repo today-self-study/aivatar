@@ -1,16 +1,18 @@
 import { useState } from 'react';
 import { User, Ruler, Weight } from 'lucide-react';
-import type { UserProfile, BodyType } from '../types';
+import type { UserProfile, BodyType, Gender } from '../types';
 import { cn, calculateBMI, getBMICategory, generateId } from '../utils';
 
 interface UserProfileFormProps {
   onSubmit: (profile: UserProfile) => void;
+  selectedGender: Gender | null;
   selectedBodyType: BodyType | null;
   className?: string;
 }
 
 export default function UserProfileForm({
   onSubmit,
+  selectedGender,
   selectedBodyType,
   className
 }: UserProfileFormProps) {
@@ -24,6 +26,11 @@ export default function UserProfileForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!selectedGender) {
+      alert('성별을 선택해주세요.');
+      return;
+    }
+    
     if (!selectedBodyType) {
       alert('체형을 선택해주세요.');
       return;
@@ -34,6 +41,7 @@ export default function UserProfileForm({
     try {
       const userProfile: UserProfile = {
         id: generateId(),
+        gender: selectedGender,
         height,
         weight,
         bodyType: selectedBodyType,
@@ -62,6 +70,26 @@ export default function UserProfileForm({
             정확한 3D 아바타 생성을 위해 신체 정보를 입력해주세요.
           </p>
         </div>
+
+        {/* 선택된 성별 정보 */}
+        {selectedGender && (
+          <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+            <h3 className="font-medium text-gray-900 mb-2">선택한 성별</h3>
+            <div className="flex items-center gap-3">
+              <div className="text-2xl">
+                {selectedGender === 'male' ? '👨' : '👩'}
+              </div>
+              <div>
+                <div className="font-medium text-gray-900">
+                  {selectedGender === 'male' ? '남성' : '여성'}
+                </div>
+                <div className="text-sm text-gray-600">
+                  {selectedGender === 'male' ? '남성 체형에 맞는 분석' : '여성 체형에 맞는 분석'}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 키 입력 */}
         <div className="space-y-2">
@@ -172,11 +200,11 @@ export default function UserProfileForm({
         {/* 제출 버튼 */}
         <button
           type="submit"
-          disabled={!selectedBodyType || isSubmitting}
+          disabled={!selectedGender || !selectedBodyType || isSubmitting}
           className={cn(
             'w-full py-3 px-4 rounded-lg font-medium transition-colors',
             'focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-            selectedBodyType && !isSubmitting
+            selectedGender && selectedBodyType && !isSubmitting
               ? 'bg-primary-600 text-white hover:bg-primary-700'
               : 'bg-gray-300 text-gray-500 cursor-not-allowed'
           )}

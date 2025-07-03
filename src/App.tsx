@@ -4,19 +4,26 @@ import Avatar3D from './components/Avatar3D'
 import BodyTypeSelector from './components/BodyTypeSelector'
 import UserProfileForm from './components/UserProfileForm'
 import ClothingList from './components/ClothingList'
-import type { UserProfile, BodyType, ClothingItem, ClothingCategoryType } from './types'
+import GenderSelector from './components/GenderSelector'
+import type { UserProfile, BodyType, ClothingItem, ClothingCategoryType, Gender } from './types'
 import { useLocalStorage } from './hooks/useLocalStorage'
 import { cn } from './utils'
 
-type AppStep = 'bodyType' | 'profile' | 'avatar' | 'clothing'
+type AppStep = 'gender' | 'bodyType' | 'profile' | 'avatar' | 'clothing'
 
 function App() {
-  const [currentStep, setCurrentStep] = useState<AppStep>('bodyType')
+  const [currentStep, setCurrentStep] = useState<AppStep>('gender')
+  const [selectedGender, setSelectedGender] = useState<Gender | null>(null)
   const [selectedBodyType, setSelectedBodyType] = useState<BodyType | null>(null)
   const [userProfile, setUserProfile] = useLocalStorage<UserProfile | null>('userProfile', null)
   const [selectedClothing, setSelectedClothing] = useLocalStorage<ClothingItem[]>('selectedClothing', [])
   const [selectedCategory, setSelectedCategory] = useState<ClothingCategoryType | 'all'>('all')
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+
+  const handleGenderSelect = (gender: Gender) => {
+    setSelectedGender(gender)
+    setCurrentStep('bodyType')
+  }
 
   const handleBodyTypeSelect = (bodyType: BodyType) => {
     setSelectedBodyType(bodyType)
@@ -40,7 +47,8 @@ function App() {
   }
 
   const handleReset = () => {
-    setCurrentStep('bodyType')
+    setCurrentStep('gender')
+    setSelectedGender(null)
     setSelectedBodyType(null)
     setUserProfile(null)
     setSelectedClothing([])
@@ -49,6 +57,8 @@ function App() {
 
   const getStepTitle = () => {
     switch (currentStep) {
+      case 'gender':
+        return '성별 선택'
       case 'bodyType':
         return '체형 선택'
       case 'profile':
@@ -64,6 +74,8 @@ function App() {
 
   const getStepDescription = () => {
     switch (currentStep) {
+      case 'gender':
+        return '성별에 따라 더 정확한 체형 분석을 제공합니다'
       case 'bodyType':
         return '나와 가장 비슷한 체형을 선택해주세요'
       case 'profile':
@@ -135,16 +147,37 @@ function App() {
             
             <nav className="flex-1 p-4 space-y-2">
               <button
-                onClick={() => setCurrentStep('bodyType')}
+                onClick={() => setCurrentStep('gender')}
                 className={cn(
                   'w-full flex items-center gap-3 p-3 rounded-lg text-left transition-colors',
-                  currentStep === 'bodyType' 
+                  currentStep === 'gender' 
                     ? 'bg-primary-100 text-primary-700' 
                     : 'hover:bg-gray-100'
                 )}
               >
                 <div className="w-6 h-6 rounded-full bg-primary-500 text-white text-sm flex items-center justify-center">
                   1
+                </div>
+                성별 선택
+              </button>
+              
+              <button
+                onClick={() => setCurrentStep('bodyType')}
+                disabled={!selectedGender}
+                className={cn(
+                  'w-full flex items-center gap-3 p-3 rounded-lg text-left transition-colors',
+                  currentStep === 'bodyType' 
+                    ? 'bg-primary-100 text-primary-700' 
+                    : selectedGender
+                      ? 'hover:bg-gray-100'
+                      : 'text-gray-400 cursor-not-allowed'
+                )}
+              >
+                <div className={cn(
+                  'w-6 h-6 rounded-full text-white text-sm flex items-center justify-center',
+                  selectedGender ? 'bg-primary-500' : 'bg-gray-300'
+                )}>
+                  2
                 </div>
                 체형 선택
               </button>
@@ -165,7 +198,7 @@ function App() {
                   'w-6 h-6 rounded-full text-white text-sm flex items-center justify-center',
                   selectedBodyType ? 'bg-primary-500' : 'bg-gray-300'
                 )}>
-                  2
+                  3
                 </div>
                 신체 정보 입력
               </button>
@@ -186,7 +219,7 @@ function App() {
                   'w-6 h-6 rounded-full text-white text-sm flex items-center justify-center',
                   userProfile ? 'bg-primary-500' : 'bg-gray-300'
                 )}>
-                  3
+                  4
                 </div>
                 3D 아바타 보기
               </button>
@@ -207,7 +240,7 @@ function App() {
                   'w-6 h-6 rounded-full text-white text-sm flex items-center justify-center',
                   userProfile ? 'bg-primary-500' : 'bg-gray-300'
                 )}>
-                  4
+                  5
                 </div>
                 의류 선택
               </button>
@@ -241,9 +274,10 @@ function App() {
                     className="bg-primary-500 h-2 rounded-full transition-all duration-300"
                     style={{ 
                       width: `${
-                        currentStep === 'bodyType' ? 25 :
-                        currentStep === 'profile' ? 50 :
-                        currentStep === 'avatar' ? 75 :
+                        currentStep === 'gender' ? 20 :
+                        currentStep === 'bodyType' ? 40 :
+                        currentStep === 'profile' ? 60 :
+                        currentStep === 'avatar' ? 80 :
                         100
                       }%` 
                     }}
@@ -256,6 +290,13 @@ function App() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* 좌측 패널 */}
               <div className="lg:col-span-2">
+                {currentStep === 'gender' && (
+                  <GenderSelector
+                    selectedGender={selectedGender}
+                    onGenderSelect={handleGenderSelect}
+                  />
+                )}
+                
                 {currentStep === 'bodyType' && (
                   <BodyTypeSelector
                     selectedBodyType={selectedBodyType}
@@ -265,6 +306,7 @@ function App() {
                 
                 {currentStep === 'profile' && (
                   <UserProfileForm
+                    selectedGender={selectedGender}
                     selectedBodyType={selectedBodyType}
                     onSubmit={handleProfileSubmit}
                   />
