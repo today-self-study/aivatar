@@ -39,7 +39,8 @@ const clothingItemSchema = z.object({
   description: z.string().min(1, '상품 설명을 입력해주세요'),
   colors: z.array(z.string()).min(1, '최소 하나의 색상을 선택해주세요'),
   sizes: z.array(z.string()).min(1, '최소 하나의 사이즈를 선택해주세요'),
-  tags: z.array(z.string()).optional()
+  tags: z.array(z.string()).optional(),
+  imageUrl: z.string().optional()
 });
 
 type ClothingItemFormType = z.infer<typeof clothingItemSchema>;
@@ -99,6 +100,7 @@ export default function ClothingItemForm({ onSubmit, onCancel, className }: Clot
   });
 
   const watchedUrl = watch('originalUrl');
+  const watchedImageUrl = watch('imageUrl');
 
   const analyzeWithAI = async () => {
     if (!watchedUrl.trim()) {
@@ -110,9 +112,6 @@ export default function ClothingItemForm({ onSubmit, onCancel, className }: Clot
     setAnalysisProgress('');
 
     try {
-      // 브라우저 스크린샷 기능 안내
-      toast.success('브라우저에서 화면 공유를 허용해주세요', { duration: 4000 });
-      
       const { getOpenAI } = await import('../utils/openai');
       const openAIUtils = getOpenAI();
       
@@ -125,13 +124,63 @@ export default function ClothingItemForm({ onSubmit, onCancel, className }: Clot
         setAnalysisProgress(message);
       });
 
+      // 기본 정보 설정
+      if (result.name && !watch('name')) {
+        setValue('name', result.name);
+      }
+      
+      if (result.brand && !watch('brand')) {
+        setValue('brand', result.brand);
+      }
+      
       if (result.category && result.category !== 'unknown') {
         setValue('category', result.category);
-        toast.success('AI 분석 완료!');
+      }
+      
+      if (result.description && !watch('description')) {
+        setValue('description', result.description);
+      }
+      
+      if (result.estimatedPrice && !watch('price')) {
+        setValue('price', result.estimatedPrice);
       }
 
+      // 색상 설정
+      if (result.colors && result.colors.length > 0) {
+        const validColors = result.colors.filter(color => 
+          COLORS.some(c => 
+            c.value.toLowerCase().includes(color.toLowerCase()) ||
+            color.toLowerCase().includes(c.value.toLowerCase())
+          )
+        );
+        
+        if (validColors.length > 0) {
+          // 첫 번째 유효한 색상으로 매핑
+          const mappedColors = validColors.map(color => {
+            const found = COLORS.find(c => 
+              c.value.toLowerCase().includes(color.toLowerCase()) ||
+              color.toLowerCase().includes(c.value.toLowerCase())
+            );
+            return found ? found.value : color;
+          });
+          
+          setSelectedColors(mappedColors);
+          setValue('colors', mappedColors);
+        }
+      }
+
+      // 태그 설정
+      if (result.tags && result.tags.length > 0) {
+        setValue('tags', result.tags);
+      }
+
+      // 이미지 URL 설정
+      if (result.imageUrl) {
+        setValue('imageUrl', result.imageUrl);
+      }
+
+      // details 객체가 있다면 추가 정보 설정
       if (result.details) {
-        // 분석 결과를 폼에 자동 입력
         if (result.details.name && !watch('name')) {
           setValue('name', result.details.name);
         }
@@ -141,17 +190,13 @@ export default function ClothingItemForm({ onSubmit, onCancel, className }: Clot
         if (result.details.price && !watch('price')) {
           setValue('price', result.details.price);
         }
-        if (result.details.color && !selectedColors.includes(result.details.color)) {
-          setSelectedColors([result.details.color]);
-          setValue('colors', [result.details.color]);
+        if (result.details.description && !watch('description')) {
+          setValue('description', result.details.description);
         }
-        if (result.details.size && !selectedSizes.includes(result.details.size)) {
-          setSelectedSizes([result.details.size]);
-          setValue('sizes', [result.details.size]);
-        }
-        
-        toast.success('상품 정보가 자동으로 입력되었습니다!');
       }
+      
+      toast.success('AI 분석이 완료되었습니다!');
+      
     } catch (error) {
       console.error('AI 분석 오류:', error);
       const errorMessage = error instanceof Error ? error.message : 'AI 분석 중 오류가 발생했습니다';
@@ -198,7 +243,7 @@ export default function ClothingItemForm({ onSubmit, onCancel, className }: Clot
       colors: selectedColors,
       sizes: selectedSizes,
       tags: data.tags || [],
-      imageUrl: '', // 추후 이미지 업로드 기능 추가 시 사용
+      imageUrl: data.imageUrl || '', // AI에서 추출한 이미지 URL 사용
       createdAt: new Date().toISOString(),
       githubIssueNumber: undefined // GitHub 이슈 연동 제거
     };
@@ -309,32 +354,63 @@ export default function ClothingItemForm({ onSubmit, onCancel, className }: Clot
         </div>
 
         {/* AI 분석 결과 표시 */}
-        {analysisResult && (
+        {(analysisResult || watchedImageUrl) && (
           <div className="bg-green-50 border border-green-200 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-3">
               <Sparkles className="w-5 h-5 text-green-600" />
-              <h4 className="font-medium text-green-900">AI 분석 완료</h4>
+              <h4 className="font-medium text-green-900">
+                {analysisResult ? 'AI 분석 완료' : '상품 이미지'}
+              </h4>
             </div>
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <span className="text-gray-600">상품명:</span>
-                <span className="ml-2 font-medium">{analysisResult.name}</span>
+            
+            {/* 상품 이미지 미리보기 */}
+            {watchedImageUrl && (
+              <div className="mb-4">
+                <div className="relative w-full h-48 bg-gray-100 rounded-lg overflow-hidden">
+                  <img
+                    src={watchedImageUrl}
+                    alt="상품 이미지"
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                      target.nextElementSibling?.classList.remove('hidden');
+                    }}
+                  />
+                  <div className="hidden absolute inset-0 flex items-center justify-center bg-gray-100">
+                    <div className="text-center text-gray-500">
+                      <div className="w-12 h-12 mx-auto mb-2 bg-gray-200 rounded-lg flex items-center justify-center">
+                        📷
+                      </div>
+                      <p className="text-sm">이미지를 불러올 수 없습니다</p>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div>
-                <span className="text-gray-600">브랜드:</span>
-                <span className="ml-2 font-medium">{analysisResult.brand}</span>
+            )}
+            
+            {analysisResult && (
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <span className="text-gray-600">상품명:</span>
+                  <span className="ml-2 font-medium">{analysisResult.name}</span>
+                </div>
+                <div>
+                  <span className="text-gray-600">브랜드:</span>
+                  <span className="ml-2 font-medium">{analysisResult.brand}</span>
+                </div>
+                <div>
+                  <span className="text-gray-600">카테고리:</span>
+                  <span className="ml-2 font-medium">
+                    {CATEGORIES.find(c => c.value === analysisResult.category)?.label}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-gray-600">예상 가격:</span>
+                  <span className="ml-2 font-medium">{analysisResult.estimatedPrice.toLocaleString()}원</span>
+                </div>
               </div>
-              <div>
-                <span className="text-gray-600">카테고리:</span>
-                <span className="ml-2 font-medium">
-                  {CATEGORIES.find(c => c.value === analysisResult.category)?.label}
-                </span>
-              </div>
-              <div>
-                <span className="text-gray-600">예상 가격:</span>
-                <span className="ml-2 font-medium">{analysisResult.estimatedPrice.toLocaleString()}원</span>
-              </div>
-            </div>
+            )}
           </div>
         )}
 

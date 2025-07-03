@@ -125,6 +125,7 @@ export interface ImageAnalysisResult {
   estimatedPrice: number;
   colors: string[];
   tags: string[];
+  imageUrl?: string;
   details?: {
     name?: string;
     brand?: string;

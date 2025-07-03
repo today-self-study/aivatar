@@ -360,6 +360,28 @@ function App() {
                             )}
                             onClick={() => handleItemSelect(item)}
                           >
+                            {/* 상품 이미지 */}
+                            {item.imageUrl && (
+                              <div className="mb-3 w-full h-32 bg-gray-100 rounded-lg overflow-hidden">
+                                <img
+                                  src={item.imageUrl}
+                                  alt={item.name}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    target.style.display = 'none';
+                                    target.nextElementSibling?.classList.remove('hidden');
+                                  }}
+                                />
+                                <div className="hidden w-full h-full flex items-center justify-center bg-gray-100">
+                                  <div className="text-center text-gray-500">
+                                    <div className="text-2xl mb-1">📷</div>
+                                    <p className="text-xs">이미지 없음</p>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            
                             <div className="flex items-center gap-3 mb-3">
                               <div className="text-2xl">
                                 {item.category === 'tops' && '👕'}

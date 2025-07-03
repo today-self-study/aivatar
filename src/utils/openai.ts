@@ -27,189 +27,11 @@ export class OpenAIUtils {
 
   async analyzeClothingFromUrl(url: string, onProgress?: (message: string) => void): Promise<ImageAnalysisResult> {
     try {
-      // 1단계: 사용자 브라우저에서 스크린샷 촬영
-      onProgress?.('상품 페이지를 열고 스크린샷을 준비하는 중...');
+      // 1단계: 웹페이지 텍스트 콘텐츠 분석
+      onProgress?.('상품 페이지 정보를 가져오는 중...');
       
-      let screenshotBase64 = '';
+      return await this.analyzeWithTextContent(url, onProgress);
       
-      try {
-        // 사용자에게 페이지를 열어달라고 안내
-        onProgress?.('새 탭에서 상품 페이지를 열어주세요...');
-        
-        // 새 탭으로 상품 페이지 열기
-        const newTab = window.open(url, '_blank');
-        if (!newTab) {
-          throw new Error('팝업이 차단되었습니다. 팝업을 허용하고 다시 시도해주세요.');
-        }
-        
-        // 페이지 로딩 대기
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        
-        onProgress?.('화면 캡처를 시작합니다. 브라우저에서 상품 페이지 탭을 선택해주세요...');
-        
-        // Screen Capture API로 스크린샷 촬영
-        const stream = await navigator.mediaDevices.getDisplayMedia({
-          video: {
-            width: { ideal: 1200 },
-            height: { ideal: 800 }
-          }
-        });
-        
-        onProgress?.('화면을 캡처하는 중...');
-        
-        // 비디오 스트림을 캔버스로 변환
-        const video = document.createElement('video');
-        video.srcObject = stream;
-        video.play();
-        
-        // 비디오가 재생되면 캔버스에 그리기
-        await new Promise((resolve) => {
-          video.onloadedmetadata = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            
-            const ctx = canvas.getContext('2d');
-            ctx?.drawImage(video, 0, 0);
-            
-            // base64로 변환
-            screenshotBase64 = canvas.toDataURL('image/png').split(',')[1];
-            
-            // 스트림 정리
-            stream.getTracks().forEach(track => track.stop());
-            
-            // 새 탭 닫기
-            newTab.close();
-            
-            resolve(void 0);
-          };
-        });
-        
-        if (!screenshotBase64) {
-          throw new Error('스크린샷 캡처 실패');
-        }
-        
-        onProgress?.('스크린샷 캡처 완료!');
-        
-      } catch (screenshotError) {
-        console.warn('브라우저 스크린샷 실패, 대체 방법 시도:', screenshotError);
-        
-        // 브라우저 스크린샷 실패 시 iframe + html2canvas 시도
-        try {
-          onProgress?.('iframe을 사용한 스크린샷을 시도하는 중...');
-          screenshotBase64 = await this.captureWithIframe(url);
-        } catch (iframeError) {
-          console.warn('iframe 스크린샷도 실패, 텍스트 분석으로 대체:', iframeError);
-          // 모든 스크린샷 방법 실패 시 텍스트 분석으로 폴백
-          return await this.analyzeWithTextContent(url, onProgress);
-        }
-      }
-
-      // 2단계: GPT-4o Vision으로 이미지 분석
-      onProgress?.('AI가 상품 이미지를 분석하는 중...');
-      
-      const prompt = `
-이 쇼핑몰 웹페이지 스크린샷을 분석하여 의류 상품 정보를 추출해주세요.
-
-웹페이지 URL: ${url}
-
-다음 정보를 정확하게 분석해주세요:
-1. 상품 이미지에서 보이는 의류의 종류와 스타일
-2. 페이지에 표시된 상품명, 브랜드명
-3. 가격 정보 (할인가가 있다면 할인가 우선)
-4. 상품 설명이나 특징
-5. 색상 옵션들
-6. 카테고리 (상의/하의/아우터/신발/액세서리)
-
-아래 JSON 형식으로 정확하게 응답해주세요:
-{
-  "name": "상품명",
-  "brand": "브랜드명",
-  "category": "tops|bottoms|outerwear|shoes|accessories 중 하나",
-  "description": "상품 설명 (스타일, 소재, 특징 포함)",
-  "estimatedPrice": 가격숫자,
-  "colors": ["색상1", "색상2"],
-  "tags": ["태그1", "태그2", "태그3"]
-}
-
-분석 지침:
-- 이미지에서 실제로 보이는 상품을 기준으로 분석
-- 카테고리는 상품 이미지와 설명을 종합하여 정확히 분류
-- 가격은 페이지에 표시된 숫자에서 추출 (원화 기준)
-- 색상은 이미지에서 보이는 색상과 옵션에서 제공되는 색상 모두 고려
-- 태그는 스타일, 시즌, 소재, 용도 등을 포함
-
-반드시 JSON 형식만 응답하고, 다른 설명은 포함하지 마세요.
-`;
-
-      const response = await this.openai.chat.completions.create({
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'system',
-            content: '당신은 전문 패션 분석가입니다. 쇼핑몰 웹페이지 스크린샷을 정확하게 분석하여 의류 상품 정보를 JSON 형식으로 추출해주세요. 이미지의 모든 시각적 정보와 텍스트 정보를 종합적으로 고려하여 가장 정확한 결과를 제공해주세요.'
-          },
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: prompt
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:image/png;base64,${screenshotBase64}`,
-                  detail: 'high'
-                }
-              }
-            ]
-          }
-        ],
-        max_tokens: 1500,
-        temperature: 0.2
-      });
-
-      const content = response.choices[0]?.message?.content;
-      if (!content) {
-        throw new Error('OpenAI API 응답이 비어있습니다.');
-      }
-
-      try {
-        // JSON 응답 파싱
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) {
-          throw new Error('JSON 형식을 찾을 수 없습니다.');
-        }
-        
-        const parsed = JSON.parse(jsonMatch[0]) as ImageAnalysisResult;
-        
-        // 기본값 검증 및 보정
-        if (!parsed.name || parsed.name === '상품명') {
-          parsed.name = this.extractProductNameFromUrl(url);
-        }
-        if (!parsed.brand || parsed.brand === '브랜드명') {
-          parsed.brand = this.extractShoppingMall(url);
-        }
-        if (!parsed.category) {
-          parsed.category = this.extractCategoryFromUrl(url);
-        }
-        if (!parsed.estimatedPrice || parsed.estimatedPrice === 0) {
-          parsed.estimatedPrice = 50000; // 기본값
-        }
-        if (!parsed.colors || parsed.colors.length === 0) {
-          parsed.colors = ['기타'];
-        }
-        if (!parsed.tags || parsed.tags.length === 0) {
-          parsed.tags = ['일반'];
-        }
-        
-        return parsed;
-      } catch (parseError) {
-        console.error('JSON parsing failed:', parseError);
-        // JSON 파싱 실패 시 URL 기반 기본값 반환
-        return this.createFallbackAnalysis(url);
-      }
     } catch (error) {
       console.error('Failed to analyze clothing from URL:', error);
       
@@ -218,12 +40,14 @@ export class OpenAIUtils {
     }
   }
 
-  // 텍스트 기반 분석 (스크린샷 실패 시 폴백)
-  private async analyzeWithTextContent(url: string, _onProgress?: (message: string) => void): Promise<ImageAnalysisResult> {
-    // 기존 텍스트 분석 로직 유지
+  // 텍스트 기반 분석 (메인 분석 방법)
+  private async analyzeWithTextContent(url: string, onProgress?: (message: string) => void): Promise<ImageAnalysisResult> {
     let productInfo = '';
+    let extractedImageUrl = '';
     
     try {
+      onProgress?.('웹페이지 내용을 분석하는 중...');
+      
       // CORS 문제를 우회하기 위해 여러 방법 시도
       let response;
       
@@ -272,59 +96,168 @@ export class OpenAIUtils {
         const parser = new DOMParser();
         const doc = parser.parseFromString(responseText, 'text/html');
         
+        // 메타 정보 추출
         const title = doc.querySelector('title')?.textContent?.trim() || '';
         const description = doc.querySelector('meta[name="description"]')?.getAttribute('content') || '';
+        const ogTitle = doc.querySelector('meta[property="og:title"]')?.getAttribute('content') || '';
+        const ogDescription = doc.querySelector('meta[property="og:description"]')?.getAttribute('content') || '';
+        
+        // 상품 정보 요소들 추출
+        const productName = doc.querySelector('.product-name, .item-name, .goods-name, h1')?.textContent?.trim() || '';
+        const brandName = doc.querySelector('.brand-name, .brand, .maker')?.textContent?.trim() || '';
+        const price = doc.querySelector('.price, .amount, .cost')?.textContent?.trim() || '';
+        
+        // 상품 이미지 추출
+        extractedImageUrl = this.extractProductImage(doc, url);
         
         productInfo = `
 URL: ${url}
 제목: ${title}
+OG 제목: ${ogTitle}
 설명: ${description}
+OG 설명: ${ogDescription}
+상품명: ${productName}
+브랜드: ${brandName}
+가격: ${price}
+이미지: ${extractedImageUrl}
 `;
       }
     } catch (error) {
-      console.warn('텍스트 분석도 실패:', error);
+      console.warn('웹페이지 분석 실패:', error);
     }
     
-    // 기본 GPT 분석
+    onProgress?.('AI가 상품 정보를 분석하는 중...');
+    
+    // GPT를 통한 상품 정보 분석
     const prompt = `
-다음 쇼핑몰 정보를 분석해주세요:
+다음 쇼핑몰 상품 정보를 분석하여 정확한 의류 정보를 추출해주세요:
+
 ${productInfo}
 
-JSON 형식으로 응답해주세요:
+다음 JSON 형식으로 정확하게 응답해주세요:
 {
   "name": "상품명",
   "brand": "브랜드명", 
-  "category": "tops",
-  "description": "상품 설명",
-  "estimatedPrice": 50000,
-  "colors": ["기타"],
-  "tags": ["일반"]
+  "category": "tops|bottoms|outerwear|shoes|accessories 중 하나",
+  "description": "상품 설명 (스타일, 소재, 특징 포함)",
+  "estimatedPrice": 가격숫자,
+  "colors": ["색상1", "색상2"],
+  "tags": ["태그1", "태그2", "태그3"],
+  "imageUrl": "상품이미지URL",
+  "details": {
+    "name": "상품명",
+    "brand": "브랜드명",
+    "price": 가격숫자,
+    "color": "주요색상",
+    "size": "사이즈정보",
+    "description": "상품설명"
+  }
 }
+
+분석 지침:
+- 카테고리는 상품 정보를 종합하여 정확히 분류 (상의=tops, 하의=bottoms, 아우터=outerwear, 신발=shoes, 액세서리=accessories)
+- 가격은 숫자만 추출 (원화 기준, 쉼표 제거)
+- 색상은 한국어로 표기 (화이트, 블랙, 네이비 등)
+- 태그는 스타일, 소재, 용도 등을 포함
+- details 객체에는 폼 입력용 세부 정보 포함
+
+반드시 유효한 JSON 형식으로만 응답하고, 마크다운 코드 블록이나 다른 텍스트는 포함하지 마세요.
 `;
 
     try {
       const response = await this.openai.chat.completions.create({
-        model: 'gpt-4o',
+        model: 'gpt-4o-mini', // 텍스트 분석이므로 더 빠른 모델 사용
         messages: [
-          { role: 'system', content: '쇼핑몰 정보를 분석하여 JSON 형식으로 응답해주세요.' },
-          { role: 'user', content: prompt }
+          {
+            role: 'system',
+            content: '당신은 전문 패션 분석가입니다. 쇼핑몰 상품 정보를 정확하게 분석하여 의류 정보를 JSON 형식으로 추출해주세요. 반드시 유효한 JSON만 응답하세요.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
         ],
         max_tokens: 1000,
-        temperature: 0.3
+        temperature: 0.1
       });
 
-      const content = response.choices[0]?.message?.content;
-      if (content) {
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          return JSON.parse(jsonMatch[0]) as ImageAnalysisResult;
-        }
+      const content = response.choices[0]?.message?.content?.trim();
+      if (!content) {
+        throw new Error('OpenAI API 응답이 비어있습니다.');
       }
-    } catch (error) {
-      console.error('텍스트 기반 GPT 분석 실패:', error);
+
+      try {
+        // JSON 코드 블록 제거 및 파싱
+        let jsonContent = content;
+        
+        // 마크다운 코드 블록 제거
+        const codeBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+        if (codeBlockMatch) {
+          jsonContent = codeBlockMatch[1].trim();
+        }
+        
+        // JSON 객체 추출
+        const jsonMatch = jsonContent.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+          throw new Error('JSON 형식을 찾을 수 없습니다.');
+        }
+        
+        const parsed = JSON.parse(jsonMatch[0]) as ImageAnalysisResult;
+        
+        // 데이터 검증 및 보정
+        if (!parsed.name || parsed.name === '상품명') {
+          parsed.name = this.extractProductNameFromUrl(url);
+        }
+        if (!parsed.brand || parsed.brand === '브랜드명') {
+          parsed.brand = this.extractShoppingMall(url);
+        }
+        if (!parsed.category) {
+          parsed.category = this.extractCategoryFromUrl(url);
+        }
+        if (!parsed.estimatedPrice || parsed.estimatedPrice === 0) {
+          parsed.estimatedPrice = 50000; // 기본값
+        }
+        if (!parsed.colors || parsed.colors.length === 0) {
+          parsed.colors = ['기타'];
+        }
+        if (!parsed.tags || parsed.tags.length === 0) {
+          parsed.tags = ['일반'];
+        }
+        
+        // 추출된 이미지 URL 설정
+        if (!parsed.imageUrl && extractedImageUrl) {
+          parsed.imageUrl = extractedImageUrl;
+        }
+        
+        // details 객체 보정
+        if (!parsed.details) {
+          parsed.details = {};
+        }
+        if (!parsed.details.name) {
+          parsed.details.name = parsed.name;
+        }
+        if (!parsed.details.brand) {
+          parsed.details.brand = parsed.brand;
+        }
+        if (!parsed.details.price) {
+          parsed.details.price = parsed.estimatedPrice;
+        }
+        if (!parsed.details.color && parsed.colors.length > 0) {
+          parsed.details.color = parsed.colors[0];
+        }
+        
+        onProgress?.('분석 완료!');
+        return parsed;
+        
+      } catch (parseError) {
+        console.error('JSON parsing failed:', parseError, 'Content:', content);
+        // JSON 파싱 실패 시 URL 기반 기본값 반환
+        return this.createFallbackAnalysis(url);
+      }
+    } catch (apiError) {
+      console.error('OpenAI API call failed:', apiError);
+      return this.createFallbackAnalysis(url);
     }
-    
-    return this.createFallbackAnalysis(url);
   }
 
   // URL에서 쇼핑몰명 추출
@@ -473,26 +406,50 @@ ${itemsInfo}
     try {
       const gender = userProfile.gender === 'male' ? 'man' : 'woman';
       const bodyType = userProfile.bodyType.name;
-      
+
+      // 의상 아이템들을 이미지 URL과 함께 설명
       const itemDescriptions = selectedItems.map(item => {
         const colors = item.colors.join(' and ');
-        return `${colors} ${item.category} (${item.name})`;
+        const description = `${colors} ${item.name} by ${item.brand}`;
+        return description;
       }).join(', ');
 
       const prompt = `
-A realistic full-body fashion photograph of a ${gender} with ${bodyType} body type, 
-wearing ${itemDescriptions}.
-The person should be standing in a clean, minimalist studio setting with soft lighting.
-High fashion photography style, professional quality, front view.
-The outfit should look stylish and well-coordinated.
-Model should be ${userProfile.height}cm tall proportionally.
-Clean background, no text or logos.
+Create a high-quality, professional fashion photograph of a ${gender} model wearing the following outfit:
+${itemDescriptions}
+
+IMPORTANT STYLING REQUIREMENTS:
+- Model should be standing in a classic, straight posture (정자세)
+- Arms naturally at sides or slightly positioned for fashion pose
+- Front-facing view, looking directly at camera
+- Professional fashion photography lighting
+- Clean, minimalist white or light gray studio background
+- No text, logos, or watermarks visible
+- High resolution, crisp details
+
+BODY TYPE: ${bodyType} body type
+HEIGHT: Proportional to ${userProfile.height}cm
+
+OUTFIT COORDINATION:
+- Ensure all clothing items work harmoniously together
+- Pay attention to color coordination and style matching
+- Professional styling that looks realistic and wearable
+- Each piece should be clearly visible and well-fitted
+
+PHOTOGRAPHY STYLE:
+- Professional fashion editorial style
+- Soft, even lighting that shows fabric textures
+- Sharp focus on the outfit details
+- Model should have a confident, natural expression
+- Full body shot showing the complete outfit
+
+The result should look like a professional fashion catalog photo with excellent styling and coordination.
 `;
 
       const response = await this.openai.images.generate({
         model: 'dall-e-3',
         prompt,
-        size: '1024x1792',
+        size: '1024x1792', // 세로형 비율로 전신 촬영에 적합
         quality: 'hd',
         n: 1
       });
@@ -529,58 +486,122 @@ Clean background, no text or logos.
     }
   }
 
-  // iframe을 사용한 스크린샷 캡처 (폴백 방법)
-  private async captureWithIframe(url: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-      try {
-        // iframe 생성
-        const iframe = document.createElement('iframe');
-        iframe.src = url;
-        iframe.style.width = '1200px';
-        iframe.style.height = '800px';
-        iframe.style.position = 'absolute';
-        iframe.style.left = '-9999px';
-        iframe.style.top = '-9999px';
-        
-        document.body.appendChild(iframe);
-        
-        iframe.onload = async () => {
-          try {
-            // html2canvas가 있다면 사용 (없으면 에러)
-            if (typeof (window as any).html2canvas !== 'undefined') {
-              if (!iframe.contentDocument?.body) {
-                throw new Error('iframe 콘텐츠에 접근할 수 없습니다');
-              }
-              const canvas = await (window as any).html2canvas(iframe.contentDocument.body);
-              const base64 = canvas.toDataURL('image/png').split(',')[1];
-              document.body.removeChild(iframe);
-              resolve(base64);
-            } else {
-              throw new Error('html2canvas 라이브러리가 필요합니다');
-            }
-          } catch (error) {
-            document.body.removeChild(iframe);
-            reject(error);
-          }
-        };
-        
-        iframe.onerror = () => {
-          document.body.removeChild(iframe);
-          reject(new Error('iframe 로딩 실패'));
-        };
-        
-        // 타임아웃 설정
-        setTimeout(() => {
-          if (document.body.contains(iframe)) {
-            document.body.removeChild(iframe);
-            reject(new Error('iframe 로딩 타임아웃'));
-          }
-        }, 10000);
-        
-      } catch (error) {
-        reject(error);
+  // 상품 이미지 추출
+  private extractProductImage(doc: Document, baseUrl: string): string {
+    // 1. Open Graph 이미지 (가장 정확함)
+    const ogImage = doc.querySelector('meta[property="og:image"]')?.getAttribute('content');
+    if (ogImage) {
+      return this.resolveImageUrl(ogImage, baseUrl);
+    }
+    
+    // 2. Twitter Card 이미지
+    const twitterImage = doc.querySelector('meta[name="twitter:image"]')?.getAttribute('content');
+    if (twitterImage) {
+      return this.resolveImageUrl(twitterImage, baseUrl);
+    }
+    
+    // 3. 일반적인 상품 이미지 셀렉터들
+    const productImageSelectors = [
+      '.product-image img',
+      '.item-image img', 
+      '.goods-image img',
+      '.main-image img',
+      '.product-photo img',
+      '.product-detail img:first-of-type',
+      '.product-img img',
+      '.item-img img',
+      '.detail-image img',
+      '.thumb-image img',
+      'img[alt*="상품"]',
+      'img[alt*="제품"]',
+      'img[alt*="아이템"]'
+    ];
+    
+    for (const selector of productImageSelectors) {
+      const img = doc.querySelector(selector) as HTMLImageElement;
+      if (img?.src && this.isValidProductImage(img.src)) {
+        return this.resolveImageUrl(img.src, baseUrl);
       }
-    });
+    }
+    
+    // 4. 큰 이미지 찾기 (일반적으로 상품 이미지가 큼)
+    const allImages = Array.from(doc.querySelectorAll('img')) as HTMLImageElement[];
+    const validImages = allImages
+      .filter(img => img.src && this.isValidProductImage(img.src))
+      .filter(img => {
+        // 로고나 아이콘 제외
+        const src = img.src.toLowerCase();
+        return !src.includes('logo') && 
+               !src.includes('icon') && 
+               !src.includes('banner') &&
+               !src.includes('ad');
+      })
+      .sort((a, b) => {
+        // 크기 기준 정렬 (큰 이미지가 상품 이미지일 가능성 높음)
+        const aSize = (a.naturalWidth || a.width || 0) * (a.naturalHeight || a.height || 0);
+        const bSize = (b.naturalWidth || b.width || 0) * (b.naturalHeight || b.height || 0);
+        return bSize - aSize;
+      });
+    
+    if (validImages.length > 0) {
+      return this.resolveImageUrl(validImages[0].src, baseUrl);
+    }
+    
+    return '';
+  }
+  
+  // 상대 URL을 절대 URL로 변환
+  private resolveImageUrl(imageUrl: string, baseUrl: string): string {
+    if (!imageUrl) return '';
+    
+    // 이미 절대 URL인 경우
+    if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+      return imageUrl;
+    }
+    
+    // 프로토콜 상대 URL인 경우
+    if (imageUrl.startsWith('//')) {
+      const protocol = baseUrl.startsWith('https://') ? 'https:' : 'http:';
+      return protocol + imageUrl;
+    }
+    
+    // 상대 URL인 경우
+    try {
+      const base = new URL(baseUrl);
+      const resolved = new URL(imageUrl, base.origin);
+      return resolved.href;
+    } catch (error) {
+      console.warn('이미지 URL 변환 실패:', error);
+      return imageUrl;
+    }
+  }
+  
+  // 유효한 상품 이미지인지 확인
+  private isValidProductImage(src: string): boolean {
+    if (!src) return false;
+    
+    const url = src.toLowerCase();
+    
+    // 제외할 이미지 패턴들
+    const excludePatterns = [
+      'logo', 'icon', 'banner', 'ad', 'advertisement',
+      'header', 'footer', 'menu', 'nav', 'button',
+      'bg', 'background', 'pattern', 'texture',
+      'sprite', 'placeholder', 'loading', 'error',
+      'social', 'share', 'like', 'cart', 'wishlist'
+    ];
+    
+    // 제외 패턴이 포함된 경우
+    if (excludePatterns.some(pattern => url.includes(pattern))) {
+      return false;
+    }
+    
+    // 이미지 확장자 확인
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp'];
+    const hasImageExtension = imageExtensions.some(ext => url.includes(ext));
+    
+    // 확장자가 있거나, 일반적인 이미지 URL 패턴인 경우
+    return hasImageExtension || url.includes('image') || url.includes('img') || url.includes('photo');
   }
 }
 
