@@ -101,15 +101,29 @@ export default function OutfitGenerator({
       // 이미지가 있는 아이템들을 확인하여 더 정확한 분석 수행
       const itemsWithImages = selectedItems.filter(item => item.imageUrl);
       
-      const generatedImageUrl = itemsWithImages.length > 0
-        ? await openaiUtils.generateOutfitImageWithRealClothes(
-            userProfile,
-            selectedItems
-          )
-        : await openaiUtils.generateOutfitImage(
+      let generatedImageUrl: string;
+      
+      if (itemsWithImages.length > 0) {
+        try {
+          // 실험적 방법: GPT-4o 이미지 생성 직접 시도
+          generatedImageUrl = await openaiUtils.generateOutfitImageExperimental(
             userProfile,
             selectedItems
           );
+        } catch (error) {
+          console.warn('실험적 방법 실패, 기존 방법으로 폴백:', error);
+          // 실험적 방법 실패 시 기존 방법 사용
+          generatedImageUrl = await openaiUtils.generateOutfitImageWithRealClothes(
+            userProfile,
+            selectedItems
+          );
+        }
+      } else {
+        generatedImageUrl = await openaiUtils.generateOutfitImage(
+          userProfile,
+          selectedItems
+        );
+      }
 
       setProgress(100);
 

@@ -484,15 +484,11 @@ The result should look like a professional product catalog photo focusing on the
     }
   }
 
-  // GPT-4o Vision을 활용한 이미지 분석 기반 착장 생성
   async generateOutfitImageWithRealClothes(
     userProfile: UserProfile,
     selectedItems: ClothingItem[]
   ): Promise<string> {
     try {
-      const gender = userProfile.gender === 'male' ? 'male' : 'female';
-      const bodyType = userProfile.bodyType.name;
-
       // 이미지가 있는 의상들만 필터링
       const itemsWithImages = selectedItems.filter(item => item.imageUrl);
       
@@ -501,8 +497,30 @@ The result should look like a professional product catalog photo focusing on the
         return this.generateOutfitImage(userProfile, selectedItems);
       }
 
-      // 각 의상 이미지를 GPT-4o Vision으로 분석하여 정확한 설명 생성
-      const detailedDescriptions = await Promise.all(
+      // GPT-4o를 사용하여 실제 이미지 기반 착장 생성
+      return await this.generateOutfitWithGPT4oImageGeneration(userProfile, selectedItems);
+
+    } catch (error) {
+      console.error('Failed to generate outfit image with real clothes analysis:', error);
+      // 오류 발생 시 기존 방식으로 폴백
+      return this.generateOutfitImage(userProfile, selectedItems);
+    }
+  }
+
+  // GPT-4o의 이미지 생성 기능을 활용한 새로운 방법
+  async generateOutfitWithGPT4oImageGeneration(
+    userProfile: UserProfile,
+    selectedItems: ClothingItem[]
+  ): Promise<string> {
+    try {
+      const gender = userProfile.gender === 'male' ? 'male' : 'female';
+
+      // 이미지가 있는 의상들 분석
+      const itemsWithImages = selectedItems.filter(item => item.imageUrl);
+      const itemsWithoutImages = selectedItems.filter(item => !item.imageUrl);
+
+      // 1단계: GPT-4o Vision으로 모든 의상 이미지 분석
+      const imageAnalyses = await Promise.all(
         itemsWithImages.map(async (item) => {
           try {
             const response = await this.openai.chat.completions.create({
@@ -510,23 +528,26 @@ The result should look like a professional product catalog photo focusing on the
               messages: [
                 {
                   role: 'system',
-                  content: 'You are an expert fashion analyst. Analyze clothing items in images and provide extremely detailed, accurate descriptions focusing on colors, textures, patterns, cut, fit, and styling details that would be essential for recreating the exact same garment.'
+                  content: 'You are an expert fashion analyst. Analyze clothing items with extreme precision for exact replication.'
                 },
                 {
                   role: 'user',
                   content: [
                     {
                       type: 'text',
-                      text: `Analyze this ${item.category} clothing item and provide a detailed description that captures:
-1. Exact colors and color combinations
-2. Fabric texture and material appearance
-3. Patterns, prints, or design elements
-4. Cut and silhouette details
-5. Fit characteristics (loose, fitted, oversized, etc.)
-6. Any distinctive styling features or brand characteristics
-7. How the garment drapes or falls
+                      text: `Analyze this ${item.category} in extreme detail for exact replication:
 
-Focus on visual details that would help recreate this exact item. Be specific about shades, textures, and proportions.`
+REQUIRED ANALYSIS:
+1. Exact colors (RGB values if possible, or precise color names)
+2. Fabric type and texture (cotton, wool, silk, denim, etc.)
+3. Pattern details (stripes, checks, solid, prints - exact descriptions)
+4. Cut and fit (slim, regular, oversized, cropped, etc.)
+5. Specific design elements (buttons, zippers, pockets, collars, etc.)
+6. Brand styling characteristics
+7. How the garment drapes and falls
+8. Any unique features or details
+
+Be extremely specific and detailed for perfect replication.`
                     },
                     {
                       type: 'image_url',
@@ -535,117 +556,202 @@ Focus on visual details that would help recreate this exact item. Be specific ab
                   ]
                 }
               ],
-              max_tokens: 300
+              max_tokens: 400
             });
 
-            const analysis = response.choices[0]?.message?.content || '';
             return {
-              category: item.category,
-              brand: item.brand,
-              name: item.name,
-              detailedDescription: analysis,
-              originalDescription: `${item.colors.join(' and ')} ${item.name} by ${item.brand}`
+              item,
+              analysis: response.choices[0]?.message?.content || `${item.colors.join(' and ')} ${item.name}`
             };
           } catch (error) {
-            console.warn(`Failed to analyze image for ${item.name}:`, error);
-            // 분석 실패 시 기본 설명 사용
+            console.warn(`Failed to analyze ${item.name}:`, error);
             return {
-              category: item.category,
-              brand: item.brand,
-              name: item.name,
-              detailedDescription: `${item.colors.join(' and ')} ${item.name} by ${item.brand}`,
-              originalDescription: `${item.colors.join(' and ')} ${item.name} by ${item.brand}`
+              item,
+              analysis: `${item.colors.join(' and ')} ${item.name} by ${item.brand}`
             };
           }
         })
       );
 
-      // 이미지가 없는 아이템들도 포함
-      const itemsWithoutImages = selectedItems.filter(item => !item.imageUrl);
-      const allItemDescriptions = [
-        ...detailedDescriptions,
-        ...itemsWithoutImages.map(item => ({
-          category: item.category,
-          brand: item.brand,
-          name: item.name,
-          detailedDescription: `${item.colors.join(' and ')} ${item.name} by ${item.brand}`,
-          originalDescription: `${item.colors.join(' and ')} ${item.name} by ${item.brand}`
-        }))
-      ];
+      // 2단계: GPT-4o를 사용하여 통합된 착장 이미지 생성 프롬프트 생성
+      const combinedPrompt = `
+Create a professional fashion photograph showing a ${gender} mannequin wearing the following outfit with PERFECT ACCURACY:
 
-      // 향상된 프롬프트 생성
-      const enhancedPrompt = `
-Create a high-quality product showcase image of a simple, neutral ${gender} mannequin wearing the following outfit with EXACT ACCURACY:
-
-CLOTHING ITEMS TO DISPLAY (MUST MATCH PERFECTLY):
-${allItemDescriptions.map(item => 
-  `${item.category.toUpperCase()}: ${item.detailedDescription}`
+CLOTHING ITEMS (MUST MATCH EXACTLY):
+${imageAnalyses.map(({ item, analysis }) => 
+  `${item.category.toUpperCase()}: ${analysis}`
 ).join('\n\n')}
 
-CRITICAL REQUIREMENTS - VISUAL ACCURACY:
-- Each clothing item must match the analyzed description EXACTLY
-- Colors must be precisely as described (no variations or artistic interpretation)
-- Fabric textures and material appearance must be accurate
-- Patterns, prints, and design elements must be replicated exactly
-- Cut, fit, and silhouette must match the analysis
-- Brand styling characteristics must be preserved
-- All proportions and details must be accurate
+${itemsWithoutImages.length > 0 ? 
+  `ADDITIONAL ITEMS (text-based):
+${itemsWithoutImages.map(item => 
+  `${item.category.toUpperCase()}: ${item.colors.join(' and ')} ${item.name} by ${item.brand}`
+).join('\n')}` : ''}
+
+CRITICAL REQUIREMENTS:
+- Use a simple, neutral ${gender} mannequin (NOT a human model)
+- Plain white or light gray featureless mannequin body
+- Professional product photography setup
+- Clean white studio background
+- Soft, even lighting that shows true colors
+- Full body shot showing complete outfit
+- Each clothing item must match the analysis EXACTLY
+- Colors must be precisely as described (no artistic interpretation)
+- Fabric textures and patterns must be accurate
+- All design elements must be replicated exactly
 
 MANNEQUIN SPECIFICATIONS:
-- Use a simple, neutral, featureless ${gender} mannequin (NOT a real person)
-- Plain white or light gray mannequin body
-- No facial features, hair, or human characteristics
-- Proportional to ${userProfile.height}cm height
-- ${bodyType} body proportions
-- Standing in straight, neutral pose with arms at sides
+- Height proportional to ${userProfile.height}cm
+- ${userProfile.bodyType.name} body proportions
+- Standing in neutral pose
+- Arms at sides or slightly away from body
+- No facial features or human characteristics
 
-PHOTOGRAPHY SETUP:
-- Clean white studio background
-- Professional product photography lighting
-- Even, soft lighting that shows fabric textures and colors accurately
-- No shadows or dramatic lighting effects
-- Front-facing view showing complete outfit
-- Full body shot from head to toe
-- High resolution, crisp details on all clothing items
-- Color accuracy is paramount - lighting should not alter clothing colors
-
-STYLING REQUIREMENTS:
-- All clothing items should be properly fitted on the mannequin
-- Natural draping and positioning of garments as they would appear in real life
-- Each piece should be clearly visible and well-coordinated
+PHOTOGRAPHY STYLE:
+- High-resolution product catalog quality
+- Color accuracy is paramount
+- Even lighting with no dramatic shadows
+- Focus on showcasing the exact clothing items
 - Professional retail display presentation
-- Focus on showcasing the exact clothing items, not the mannequin
 
-FORBIDDEN ELEMENTS:
-- No human model or realistic human features
-- No text, logos, or watermarks in the image
-- No background elements or props
-- No dramatic poses or fashion styling
-- No modification of any clothing details from the descriptions
-- No artistic interpretation of colors or patterns
-
-The result should look like a professional product catalog photo focusing on the exact clothing items as analyzed, displayed on a simple mannequin with perfect color and detail accuracy.
+The result should look like a high-end fashion catalog photo with perfect accuracy to the analyzed clothing items.
 `;
 
-      // DALL-E 3로 이미지 생성
-      const response = await this.openai.images.generate({
-        model: 'dall-e-3',
-        prompt: enhancedPrompt,
-        size: '1024x1792',
-        quality: 'hd',
-        n: 1
+      // 3단계: GPT-4o를 사용하여 이미지 생성 (대화형 방식)
+      const response = await this.openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an expert fashion photographer and image generator. Create high-quality fashion images based on detailed clothing analysis. Use your image generation capabilities to create accurate visual representations.'
+          },
+          {
+            role: 'user',
+            content: combinedPrompt
+          }
+        ],
+        max_tokens: 1000
       });
 
-      const imageUrl = response.data?.[0]?.url;
-      if (!imageUrl) {
-        throw new Error('이미지 생성에 실패했습니다.');
+      // GPT-4o가 이미지를 생성했는지 확인
+      const responseContent = response.choices[0]?.message?.content;
+      
+      // GPT-4o가 직접 이미지를 생성할 수 없는 경우 DALL-E 3 사용
+      if (!responseContent || !responseContent.includes('image')) {
+        return await this.generateWithDALLE3(combinedPrompt);
       }
 
-      return imageUrl;
+      // GPT-4o 응답에서 이미지 URL 추출 시도
+      const imageUrlMatch = responseContent.match(/https?:\/\/[^\s]+\.(?:png|jpg|jpeg|gif|webp)/i);
+      if (imageUrlMatch) {
+        return imageUrlMatch[0];
+      }
+
+      // 이미지 URL을 찾을 수 없는 경우 DALL-E 3로 폴백
+      return await this.generateWithDALLE3(combinedPrompt);
 
     } catch (error) {
-      console.error('Failed to generate outfit image with real clothes analysis:', error);
-      // 오류 발생 시 기존 방식으로 폴백
+      console.error('Failed to generate outfit with GPT-4o:', error);
+      // 오류 발생 시 기존 DALL-E 3 방식으로 폴백
+      return this.generateOutfitImage(userProfile, selectedItems);
+    }
+  }
+
+  // DALL-E 3을 사용한 이미지 생성 (폴백 방법)
+  private async generateWithDALLE3(prompt: string): Promise<string> {
+    const response = await this.openai.images.generate({
+      model: 'dall-e-3',
+      prompt: prompt,
+      size: '1024x1792',
+      quality: 'hd',
+      n: 1
+    });
+
+    const imageUrl = response.data?.[0]?.url;
+    if (!imageUrl) {
+      throw new Error('이미지 생성에 실패했습니다.');
+    }
+
+    return imageUrl;
+  }
+
+  // 새로운 실험적 방법: GPT-4o에게 이미지 생성 요청
+  async generateOutfitImageExperimental(
+    userProfile: UserProfile,
+    selectedItems: ClothingItem[]
+  ): Promise<string> {
+    try {
+      const gender = userProfile.gender === 'male' ? 'male' : 'female';
+      const itemsWithImages = selectedItems.filter(item => item.imageUrl);
+      
+      if (itemsWithImages.length === 0) {
+        return this.generateOutfitImage(userProfile, selectedItems);
+      }
+
+      // 실제 이미지들을 GPT-4o에게 보여주고 착장 이미지 생성 요청
+      const messages = [
+        {
+          role: 'system' as const,
+          content: 'You are an expert fashion stylist with image generation capabilities. Analyze the provided clothing images and create a coordinated outfit visualization.'
+        },
+        {
+          role: 'user' as const,
+          content: [
+            {
+              type: 'text' as const,
+              text: `Please analyze these clothing items and create a professional fashion photograph showing a ${gender} mannequin wearing all these items together as a coordinated outfit:
+
+USER PROFILE:
+- Gender: ${userProfile.gender}
+- Height: ${userProfile.height}cm
+- Body type: ${userProfile.bodyType.name}
+- Style preferences: ${userProfile.preferences?.styles?.join(', ') || 'None specified'}
+
+REQUIREMENTS:
+- Use a simple, neutral mannequin (not a human model)
+- Professional product photography style
+- Clean white background
+- Show all clothing items clearly
+- Maintain accurate colors and details from the original images
+- Full body shot showing complete outfit
+
+Please generate a high-quality fashion photograph based on these clothing items:`
+            },
+            // 모든 의상 이미지를 포함
+            ...itemsWithImages.map(item => ({
+              type: 'image_url' as const,
+              image_url: { url: item.imageUrl! }
+            }))
+          ]
+        }
+      ];
+
+      const response = await this.openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: messages,
+        max_tokens: 1000
+      });
+
+      const responseContent = response.choices[0]?.message?.content;
+      
+      // 응답에서 이미지 URL 추출 시도
+      if (responseContent) {
+        const imageUrlMatch = responseContent.match(/https?:\/\/[^\s]+\.(?:png|jpg|jpeg|gif|webp)/i);
+        if (imageUrlMatch) {
+          return imageUrlMatch[0];
+        }
+      }
+
+      // GPT-4o가 직접 이미지를 생성하지 못한 경우 분석 결과를 DALL-E 3에 전달
+      if (responseContent) {
+        return await this.generateWithDALLE3(responseContent);
+      }
+
+      // 모든 방법이 실패한 경우 기존 방식으로 폴백
+      return this.generateOutfitImage(userProfile, selectedItems);
+
+    } catch (error) {
+      console.error('Experimental image generation failed:', error);
       return this.generateOutfitImage(userProfile, selectedItems);
     }
   }
