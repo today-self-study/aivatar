@@ -57,6 +57,7 @@ function App() {
 
   // AI 설정 완료 핸들러
   const handleAIConfigComplete = (config: AIApiConfig) => {
+    console.log('AI 설정 완료:', config)
     setAiConfig(config)
     updateAIConfig(config)
     setCurrentStep('add-clothes')

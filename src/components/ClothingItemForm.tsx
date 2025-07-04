@@ -7,7 +7,7 @@ import { Plus } from 'lucide-react';
 import { cn, generateId } from '../utils';
 import { analyzeClothingFromUrl, getSimpleGenerator } from '../utils/openai';
 import { clothingCategories } from '../data/categories';
-import type { ClothingItem, ClothingCategoryType } from '../types';
+import type { ClothingItem, ClothingCategoryType, SimpleAnalysisResult } from '../types';
 
 // 간단한 스키마 - 필수 정보만
 const clothingSchema = z.object({
@@ -28,14 +28,7 @@ interface ClothingItemFormProps {
 const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [previewItem, setPreviewItem] = useState<{
-    name: string;
-    category: ClothingCategoryType;
-    brand?: string;
-    price?: number;
-    imageUrl?: string;
-    originalUrl: string;
-  } | null>(null);
+  const [previewItem, setPreviewItem] = useState<SimpleAnalysisResult & { originalUrl: string } | null>(null);
 
   const {
     register,
@@ -69,11 +62,7 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
       
       if (result) {
         setPreviewItem({
-          name: result.name,
-          category: result.category as ClothingCategoryType,
-          brand: result.brand,
-          price: result.price,
-          imageUrl: result.imageUrl,
+          ...result,
           originalUrl: watchedUrl
         });
         toast.success('의상 정보가 분석되었습니다!');
@@ -95,13 +84,15 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
     const newItem: ClothingItem = {
       id: generateId(),
       name: previewItem.name,
-      category: previewItem.category,
+      category: previewItem.category as ClothingCategoryType,
       brand: previewItem.brand || '',
       price: previewItem.price || 0,
       imageUrl: previewItem.imageUrl || '',
       originalUrl: previewItem.originalUrl || '',
-      description: '',
-      colors: [],
+      description: previewItem.description || '',
+      colors: previewItem.colors || [],
+      material: previewItem.material || '',
+      fit: previewItem.fit || '',
       sizes: [],
       tags: [],
       createdAt: new Date().toISOString()
@@ -124,6 +115,8 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
       originalUrl: data.url || '',
       description: '',
       colors: [],
+      material: '',
+      fit: '',
       sizes: [],
       tags: [],
       createdAt: new Date().toISOString()
@@ -201,7 +194,7 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
         {previewItem && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-blue-900">분석 결과</h3>
+              <h3 className="font-semibold text-blue-900">AI 분석 결과</h3>
               <button
                 type="button"
                 onClick={addPreviewItem}
@@ -271,7 +264,7 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
                 {previewItem.price && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      예상 가격
+                      실제 가격
                     </label>
                     <input
                       type="text"
@@ -281,22 +274,92 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
                     />
                   </div>
                 )}
+
+                {/* 새로운 속성들 */}
+                {previewItem.material && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      소재
+                    </label>
+                    <input
+                      type="text"
+                      value={previewItem.material}
+                      readOnly
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                    />
+                  </div>
+                )}
+
+                {previewItem.fit && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      핏/스타일
+                    </label>
+                    <input
+                      type="text"
+                      value={previewItem.fit}
+                      readOnly
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                    />
+                  </div>
+                )}
+
+                {previewItem.colors && previewItem.colors.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      주요 색상
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {previewItem.colors.map((color, index) => (
+                        <span
+                          key={index}
+                          className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-purple-100 text-purple-800"
+                        >
+                          {color}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {previewItem.description && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      스타일 설명
+                    </label>
+                    <textarea
+                      value={previewItem.description}
+                      readOnly
+                      rows={2}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-sm"
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* 추가 정보 */}
-            <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-              <h4 className="font-medium text-blue-800 mb-2">AI 분석 정보</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-blue-700">
+            {/* AI 분석 상태 정보 */}
+            <div className="mt-4 p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg">
+              <h4 className="font-medium text-blue-800 mb-2 flex items-center gap-2">
+                <span className="text-lg">🤖</span>
+                AI 분석 정보
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
                 <div className="flex items-center gap-2">
                   <span className={`inline-block w-3 h-3 rounded-full ${
                     previewItem.imageUrl ? 'bg-green-500' : 'bg-red-500'
                   }`}></span>
-                  이미지: {previewItem.imageUrl ? '포함됨' : '없음'}
+                  <span className="text-gray-700">
+                    이미지: {previewItem.imageUrl ? '추출 완료' : '없음'}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="inline-block w-3 h-3 rounded-full bg-blue-500"></span>
-                  카테고리: 자동 분류됨
+                  <span className="text-gray-700">카테고리: 자동 분류</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="inline-block w-3 h-3 rounded-full bg-purple-500"></span>
+                  <span className="text-gray-700">GPT-4o 분석</span>
                 </div>
               </div>
             </div>

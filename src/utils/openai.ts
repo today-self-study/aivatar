@@ -601,12 +601,14 @@ class VirtualTryOnGenerator implements VirtualTryOnGeneration {
 export async function analyzeClothingFromUrl(url: string): Promise<SimpleAnalysisResult> {
   try {
     console.log('AI 의상 URL 분석 시작:', url);
+    console.log('현재 AI 설정:', currentConfig);
     
     const generator = getVirtualTryOnGenerator();
     const imageUrl = await generator.extractImageFromUrl(url);
     
-    // 이미지가 있으면 AI 분석 시도
+    // 이미지가 있고 AI 설정이 활성화되어 있으면 AI 분석 시도
     if (imageUrl && currentConfig.useAI && currentConfig.openaiApiKey) {
+      console.log('AI 분석 조건 만족 - AI 분석 시작');
       try {
         const aiAnalysis = await analyzeClothingWithAI(imageUrl, url);
         if (aiAnalysis) {
@@ -616,6 +618,12 @@ export async function analyzeClothingFromUrl(url: string): Promise<SimpleAnalysi
       } catch (error) {
         console.warn('AI 분석 실패, 기본 분석으로 전환:', error);
       }
+    } else {
+      console.log('AI 분석 조건 미충족:', {
+        hasImage: !!imageUrl,
+        useAI: currentConfig.useAI,
+        hasApiKey: !!currentConfig.openaiApiKey
+      });
     }
     
     // AI 분석 실패 시 기본 분석
@@ -629,7 +637,7 @@ export async function analyzeClothingFromUrl(url: string): Promise<SimpleAnalysi
   }
 }
 
-// AI를 사용한 의상 분석
+// AI를 사용한 의상 분석 - 프롬프트 개선 및 더 정확한 분석
 async function analyzeClothingWithAI(imageUrl: string, originalUrl: string): Promise<SimpleAnalysisResult | null> {
   try {
     if (!currentConfig.openaiApiKey) {
@@ -653,15 +661,24 @@ async function analyzeClothingWithAI(imageUrl: string, originalUrl: string): Pro
             content: [
               {
                 type: 'text',
-                text: `이 의상 이미지를 분석해서 다음 정보를 JSON 형식으로 정확히 추출해주세요:
+                text: `이 의상 이미지를 전문적으로 분석해서 다음 정보를 JSON 형식으로 정확히 추출해주세요:
 
-요구사항:
-1. 의상 이름: 한국어로 구체적이고 매력적으로 (예: "베이직 화이트 셔츠", "스키니 블랙 진")
+🎯 분석 요구사항:
+1. 의상 이름: 구체적이고 매력적인 한국어 이름 (예: "오버핏 화이트 코튼 셔츠", "슬림핏 블랙 데님 진", "캐시미어 브이넥 니트")
 2. 카테고리: tops, bottoms, outerwear, shoes, accessories 중 정확히 하나
-3. 브랜드: 이미지에서 확인되는 브랜드명 (없으면 "Unknown")
-4. 실제 가격: 한국 원화 기준 실제 판매 가격 (예상이 아닌 실제 가격, 숫자만)
-5. 주요 색상: 1-3개의 색상 배열
-6. 스타일 설명: 간단한 한 문장
+3. 브랜드: 이미지나 URL에서 확인되는 실제 브랜드명 (확인 불가시 "Unknown")
+4. 실제 가격: 한국 시장 기준 실제 판매 가격 (원화, 숫자만)
+5. 주요 색상: 의상의 주요 색상 1-3개 (한국어)
+6. 소재: 보이는 소재 특성 (예: "코튼", "데님", "니트", "실크", "폴리에스터")
+7. 핏/스타일: 의상의 핏이나 스타일 특징 (예: "오버핏", "슬림핏", "A라인", "크롭")
+8. 스타일 설명: 의상의 특징과 스타일링 포인트 (한 문장)
+
+💡 분석 가이드:
+- 이미지를 자세히 관찰하여 정확한 정보 추출
+- 브랜드는 로고, 태그, URL 등에서 확인
+- 가격은 브랜드와 품질을 고려한 현실적 가격
+- 색상은 주요 색상부터 우선순위로 나열
+- 소재는 시각적으로 확인 가능한 특성 기반
 
 반드시 이 JSON 형식으로만 응답해주세요:
 {
@@ -669,7 +686,9 @@ async function analyzeClothingWithAI(imageUrl: string, originalUrl: string): Pro
   "category": "정확한 카테고리",
   "brand": "브랜드명",
   "price": 실제가격숫자,
-  "colors": ["색상1", "색상2"],
+  "colors": ["주요색상1", "색상2", "색상3"],
+  "material": "소재",
+  "fit": "핏/스타일",
   "description": "스타일 설명"
 }
 
@@ -686,7 +705,7 @@ async function analyzeClothingWithAI(imageUrl: string, originalUrl: string): Pro
             ]
           }
         ],
-        max_tokens: 800,
+        max_tokens: 1000,
         temperature: 0.1
       })
     });
@@ -711,7 +730,7 @@ async function analyzeClothingWithAI(imageUrl: string, originalUrl: string): Pro
 
     // JSON 파싱 시도
     try {
-      // JSON 블록 찾기
+      // JSON 블록 찾기 (코드 블록 안에 있을 수도 있음)
       const jsonMatch = aiResponse.match(/\{[\s\S]*?\}/);
       if (!jsonMatch) {
         console.error('JSON 형식을 찾을 수 없습니다:', aiResponse);
@@ -728,7 +747,9 @@ async function analyzeClothingWithAI(imageUrl: string, originalUrl: string): Pro
         brand: analysisData.brand || 'Unknown',
         price: typeof analysisData.price === 'number' ? analysisData.price : parseInt(analysisData.price) || 0,
         imageUrl: imageUrl,
-        colors: Array.isArray(analysisData.colors) ? analysisData.colors : [],
+        colors: Array.isArray(analysisData.colors) ? analysisData.colors : ['기본색상'],
+        material: analysisData.material || '',
+        fit: analysisData.fit || '',
         description: analysisData.description || ''
       };
 
@@ -1056,8 +1077,15 @@ export function getVirtualTryOnGenerator(): VirtualTryOnGenerator {
 }
 
 export function updateAIConfig(config: AIApiConfig) {
-  currentConfig = config;
-  virtualTryOnGenerator = new VirtualTryOnGenerator(config);
+  console.log('AI 설정 업데이트:', config);
+  currentConfig = { ...config }; // 깊은 복사로 안전하게 업데이트
+  virtualTryOnGenerator = new VirtualTryOnGenerator(currentConfig);
+  console.log('업데이트된 currentConfig:', currentConfig);
+}
+
+// 현재 설정 확인 함수 (디버깅용)
+export function getCurrentConfig(): AIApiConfig {
+  return currentConfig;
 }
 
 // 기존 호환성을 위한 래퍼

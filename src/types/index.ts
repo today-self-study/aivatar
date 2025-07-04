@@ -43,13 +43,15 @@ export interface ClothingCategory {
 export interface ClothingItem {
   id: string;
   name: string;
-  brand: string;
   category: ClothingCategoryType;
+  brand: string;
   price: number;
-  originalUrl: string;
   imageUrl: string;
+  originalUrl: string;
   description: string;
   colors: string[];
+  material?: string;
+  fit?: string;
   sizes: string[];
   tags: string[];
   createdAt: string;
@@ -141,4 +143,16 @@ export interface OutfitRecommendation {
   styleAnalysis: string;
   recommendations: string[];
   reasoning: string;
+}
+
+export interface SimpleAnalysisResult {
+  name: string;
+  category: string;
+  imageUrl?: string;
+  brand?: string;
+  price?: number;
+  colors?: string[];
+  material?: string;
+  fit?: string;
+  description?: string;
 } 
