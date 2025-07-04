@@ -625,12 +625,14 @@ export async function analyzeClothingFromUrl(url: string): Promise<SimpleAnalysi
         hasApiKey: !!currentConfig.openaiApiKey
       });
     }
-    
-    // AI 분석 실패 시 기본 분석
-    const fallbackAnalysis = await analyzeClothingFallback(url, imageUrl);
-    console.log('기본 분석 결과:', fallbackAnalysis);
-    return fallbackAnalysis;
-    
+
+    // AI 분석이 실패했거나 사용하지 않는 경우 기본 분석
+    console.log('기본 분석으로 전환');
+    if (imageUrl) {
+      return await analyzeClothingFallback(url, imageUrl);
+    } else {
+      return await createFallbackAnalysis(url);
+    }
   } catch (error) {
     console.error('의상 분석 실패:', error);
     return createFallbackAnalysis(url);
@@ -889,9 +891,9 @@ async function analyzeClothingFallback(url: string, imageUrl?: string | null): P
   // URL 기반 분석
   const urlAnalysis = analyzeUrlKeywords(url);
   
-  // 도메인 기반 브랜드 추출
+  // 도메인 기반 브랜드 추출 (비동기)
   const domain = new URL(url).hostname;
-  const brandName = extractBrandFromDomain(domain);
+  const brandName = await extractBrandFromPageContent(url);
   
   // 실제 가격 추정 (도메인별 평균 가격대)
   const actualPrice = estimatePriceByDomain(domain);
@@ -899,17 +901,18 @@ async function analyzeClothingFallback(url: string, imageUrl?: string | null): P
   // 상품명 생성
   const productName = generateProductName(urlAnalysis, brandName);
   
-  const result = {
+  const result: SimpleAnalysisResult = {
     name: productName,
     category: urlAnalysis.category,
     imageUrl: imageUrl || undefined,
+    originalUrl: url,
     brand: brandName,
     price: actualPrice,
     colors: ['기본색상'],
-    description: `${brandName}의 ${urlAnalysis.category} 아이템`
+    description: `${brandName}의 ${urlAnalysis.category} 상품입니다.`
   };
-
-  console.log('기본 분석 결과:', result);
+  
+  console.log('기본 분석 완료:', result);
   return result;
 }
 
@@ -940,6 +943,267 @@ function analyzeUrlKeywords(url: string): { category: string; keywords: string[]
   }
   
   return { category: detectedCategory, keywords };
+}
+
+// 브랜드 정보 추출 개선 - 페이지 내용 분석
+async function extractBrandFromPageContent(url: string): Promise<string> {
+  try {
+    console.log('페이지 내용에서 브랜드 추출 시도:', url);
+    
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+      }
+    });
+    
+    if (!response.ok) {
+      console.log('페이지 접근 실패:', response.status);
+      return extractBrandFromDomain(new URL(url).hostname);
+    }
+    
+    const html = await response.text();
+    console.log('페이지 HTML 길이:', html.length);
+    
+    // 다양한 방법으로 브랜드 추출 시도
+    const brandCandidates = [
+      // 1. 메타 태그에서 브랜드 추출
+      ...extractBrandFromMetaTags(html),
+      // 2. JSON-LD 구조화 데이터에서 브랜드 추출
+      ...extractBrandFromJsonLd(html),
+      // 3. 페이지 제목에서 브랜드 추출
+      ...extractBrandFromTitle(html),
+      // 4. 브랜드 관련 클래스명에서 추출
+      ...extractBrandFromClasses(html),
+      // 5. 텍스트 내용에서 브랜드 추출
+      ...extractBrandFromTextContent(html),
+      // 6. URL 기반 브랜드 추출
+      extractBrandFromDomain(new URL(url).hostname)
+    ];
+    
+    console.log('브랜드 후보들:', brandCandidates);
+    
+    // 가장 적절한 브랜드 선택
+    const bestBrand = selectBestBrand(brandCandidates, url);
+    console.log('선택된 브랜드:', bestBrand);
+    
+    return bestBrand;
+    
+  } catch (error) {
+    console.error('브랜드 추출 실패:', error);
+    return extractBrandFromDomain(new URL(url).hostname);
+  }
+}
+
+// 메타 태그에서 브랜드 추출
+function extractBrandFromMetaTags(html: string): string[] {
+  const brands: string[] = [];
+  
+  // og:site_name, twitter:site, brand 등 메타 태그
+  const metaPatterns = [
+    /<meta[^>]*property="og:site_name"[^>]*content="([^"]*)"[^>]*>/gi,
+    /<meta[^>]*name="twitter:site"[^>]*content="([^"]*)"[^>]*>/gi,
+    /<meta[^>]*name="brand"[^>]*content="([^"]*)"[^>]*>/gi,
+    /<meta[^>]*property="brand"[^>]*content="([^"]*)"[^>]*>/gi,
+    /<meta[^>]*name="author"[^>]*content="([^"]*)"[^>]*>/gi,
+  ];
+  
+  metaPatterns.forEach(pattern => {
+    let match;
+    while ((match = pattern.exec(html)) !== null) {
+      const brand = cleanBrandName(match[1]);
+      if (brand && brand !== 'Unknown') {
+        brands.push(brand);
+      }
+    }
+  });
+  
+  return brands;
+}
+
+// JSON-LD 구조화 데이터에서 브랜드 추출
+function extractBrandFromJsonLd(html: string): string[] {
+  const brands: string[] = [];
+  
+  try {
+    const jsonLdPattern = /<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi;
+    let match;
+    
+    while ((match = jsonLdPattern.exec(html)) !== null) {
+      try {
+        const jsonData = JSON.parse(match[1]);
+        
+        // 단일 객체 또는 배열 처리
+        const items = Array.isArray(jsonData) ? jsonData : [jsonData];
+        
+        items.forEach(item => {
+          if (item.brand) {
+            if (typeof item.brand === 'string') {
+              brands.push(cleanBrandName(item.brand));
+            } else if (item.brand.name) {
+              brands.push(cleanBrandName(item.brand.name));
+            }
+          }
+          
+          // 제조사 정보도 확인
+          if (item.manufacturer) {
+            if (typeof item.manufacturer === 'string') {
+              brands.push(cleanBrandName(item.manufacturer));
+            } else if (item.manufacturer.name) {
+              brands.push(cleanBrandName(item.manufacturer.name));
+            }
+          }
+        });
+      } catch (parseError) {
+        // JSON 파싱 실패는 무시
+      }
+    }
+  } catch (error) {
+    console.error('JSON-LD 브랜드 추출 실패:', error);
+  }
+  
+  return brands;
+}
+
+// 페이지 제목에서 브랜드 추출
+function extractBrandFromTitle(html: string): string[] {
+  const brands: string[] = [];
+  
+  const titleMatch = html.match(/<title[^>]*>([^<]*)<\/title>/i);
+  if (titleMatch) {
+    const title = titleMatch[1];
+    
+    // 제목에서 브랜드 패턴 찾기
+    const brandPatterns = [
+      /^([^-|]+)\s*[-|]/,  // "브랜드 - 상품명" 패턴
+      /([^-|]+)\s*[-|]\s*[^-|]*$/,  // "상품명 - 브랜드" 패턴
+      /\|\s*([^|]+)$/,  // "상품명 | 브랜드" 패턴
+      /^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/,  // 대문자로 시작하는 브랜드명
+    ];
+    
+    brandPatterns.forEach(pattern => {
+      const match = title.match(pattern);
+      if (match) {
+        const brand = cleanBrandName(match[1]);
+        if (brand && brand !== 'Unknown') {
+          brands.push(brand);
+        }
+      }
+    });
+  }
+  
+  return brands;
+}
+
+// 클래스명에서 브랜드 추출
+function extractBrandFromClasses(html: string): string[] {
+  const brands: string[] = [];
+  
+  // 브랜드 관련 클래스명 패턴
+  const classPatterns = [
+    /class="[^"]*brand[^"]*"/gi,
+    /class="[^"]*logo[^"]*"/gi,
+    /class="[^"]*company[^"]*"/gi,
+  ];
+  
+  classPatterns.forEach(pattern => {
+    let match;
+    while ((match = pattern.exec(html)) !== null) {
+      // 클래스명 주변 텍스트에서 브랜드 추출
+      const startIndex = Math.max(0, match.index - 200);
+      const endIndex = Math.min(html.length, match.index + match[0].length + 200);
+      const context = html.substring(startIndex, endIndex);
+      
+      // 텍스트에서 브랜드 후보 추출
+      const textBrands = extractBrandFromTextContent(context);
+      brands.push(...textBrands);
+    }
+  });
+  
+  return brands;
+}
+
+// 텍스트 내용에서 브랜드 추출
+function extractBrandFromTextContent(html: string): string[] {
+  const brands: string[] = [];
+  
+  // HTML 태그 제거
+  const text = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
+  
+  // 알려진 브랜드 패턴 매칭
+  const knownBrands = [
+    // 한국 브랜드
+    '무신사', '스탠다드', '29CM', '지고트', '스파오', '유니클로', '지오다노', '에이치앤엠', 'H&M',
+    '자라', 'ZARA', '포에버21', 'Forever 21', '갭', 'GAP', '올드네이비', 'Old Navy',
+    // 글로벌 브랜드
+    '나이키', 'Nike', '아디다스', 'Adidas', '푸마', 'Puma', '리복', 'Reebok',
+    '리바이스', "Levi's", '캘빈클라인', 'Calvin Klein', '타미힐피거', 'Tommy Hilfiger',
+    '랄프로렌', 'Ralph Lauren', '라코스테', 'Lacoste', '구찌', 'Gucci', '프라다', 'Prada',
+    '버버리', 'Burberry', '디올', 'Dior', '샤넬', 'Chanel', '루이비통', 'Louis Vuitton',
+    // 스포츠 브랜드
+    '언더아머', 'Under Armour', '뉴발란스', 'New Balance', '아식스', 'ASICS',
+    '반스', 'Vans', '컨버스', 'Converse', '닥터마틴', 'Dr. Martens',
+    // 패스트패션
+    '망고', 'Mango', '코스', 'COS', '앤아더스토리', '& Other Stories',
+    '몬키', 'Monki', '위크데이', 'Weekday'
+  ];
+  
+  knownBrands.forEach(brand => {
+    const regex = new RegExp(`\\b${brand}\\b`, 'gi');
+    if (regex.test(text)) {
+      brands.push(brand);
+    }
+  });
+  
+  return brands;
+}
+
+// 브랜드명 정리
+function cleanBrandName(brand: string): string {
+  if (!brand) return 'Unknown';
+  
+  return brand
+    .trim()
+    .replace(/^[@#]/, '') // @ 또는 # 제거
+    .replace(/\s+/g, ' ') // 여러 공백을 하나로
+    .replace(/[^\w\s&'-]/g, '') // 특수문자 제거 (단, &, ', - 는 유지)
+    .trim();
+}
+
+// 최적의 브랜드 선택
+function selectBestBrand(candidates: string[], url: string): string {
+  if (!candidates || candidates.length === 0) {
+    return 'Unknown';
+  }
+  
+  // 중복 제거 및 정리
+  const uniqueBrands = [...new Set(candidates.filter(brand => 
+    brand && brand !== 'Unknown' && brand.length > 1
+  ))];
+  
+  if (uniqueBrands.length === 0) {
+    return 'Unknown';
+  }
+  
+  // 도메인과 일치하는 브랜드 우선
+  const domain = new URL(url).hostname.toLowerCase();
+  const domainBrand = uniqueBrands.find(brand => 
+    domain.includes(brand.toLowerCase()) || brand.toLowerCase().includes(domain.split('.')[0])
+  );
+  
+  if (domainBrand) {
+    return domainBrand;
+  }
+  
+  // 가장 빈번하게 나타나는 브랜드 선택
+  const brandCounts = uniqueBrands.reduce((acc, brand) => {
+    acc[brand] = (acc[brand] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  
+  const mostFrequentBrand = Object.entries(brandCounts)
+    .sort(([,a], [,b]) => b - a)[0][0];
+  
+  return mostFrequentBrand;
 }
 
 // 도메인에서 브랜드명 추출
@@ -1158,24 +1422,38 @@ function generateProductName(analysis: { category: string; keywords: string[] },
   return `${brandName} ${categoryName}`;
 }
 
-// 기본 분석 결과 생성
-function createFallbackAnalysis(url: string): SimpleAnalysisResult {
+// 기본 분석 생성 (fallback)
+async function createFallbackAnalysis(url: string): Promise<SimpleAnalysisResult> {
+  console.log('Fallback 분석 생성:', url);
+  
   try {
     const domain = new URL(url).hostname;
-    const brandName = extractBrandFromDomain(domain);
+    const brandName = await extractBrandFromPageContent(url);
+    
+    // URL에서 기본 정보 추출
+    const urlAnalysis = analyzeUrlKeywords(url);
+    const productName = generateProductName(urlAnalysis, brandName);
+    const estimatedPrice = estimatePriceByDomain(domain);
     
     return {
-      name: `${brandName} 의상`,
-      category: 'tops',
+      name: productName,
+      category: urlAnalysis.category,
+      originalUrl: url,
       brand: brandName,
-      price: 40000
+      price: estimatedPrice,
+      colors: ['기본색상'],
+      description: `${brandName}의 ${urlAnalysis.category} 상품입니다.`
     };
-  } catch {
+  } catch (error) {
+    console.error('Fallback 분석 실패:', error);
     return {
-      name: '분석된 의상',
+      name: 'Unknown 의상',
       category: 'tops',
-      brand: '브랜드',
-      price: 40000
+      originalUrl: url,
+      brand: 'Unknown',
+      price: 0,
+      colors: ['기본색상'],
+      description: '분석할 수 없는 상품입니다.'
     };
   }
 }

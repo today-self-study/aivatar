@@ -28,14 +28,16 @@ interface ClothingItemFormProps {
 const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [previewItem, setPreviewItem] = useState<SimpleAnalysisResult & { originalUrl: string } | null>(null);
+  const [previewItem, setPreviewItem] = useState<SimpleAnalysisResult | null>(null);
+  const [autoRegister, setAutoRegister] = useState(true); // 자동 등록 설정
 
   const {
     register,
     handleSubmit,
     watch,
     reset,
-    formState: { errors }
+    formState: { errors },
+    setValue
   } = useForm<ClothingFormData>({
     resolver: zodResolver(clothingSchema),
     defaultValues: {
@@ -50,31 +52,69 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
 
   const watchedUrl = watch('url');
 
-  // URL 분석 함수
+  // URL 분석
   const analyzeUrl = async () => {
-    if (!watchedUrl) return;
+    const url = (document.querySelector('input[name="url"]') as HTMLInputElement)?.value;
+    
+    if (!url) {
+      toast.error('URL을 입력해주세요');
+      return;
+    }
 
     setIsAnalyzing(true);
-    setError(null);
+    toast.loading('AI가 의상을 분석하고 있습니다...', { id: 'analyzing' });
 
     try {
-      const result = await analyzeClothingFromUrl(watchedUrl);
+      const result = await analyzeClothingFromUrl(url);
+      console.log('분석 결과:', result);
       
       if (result) {
         setPreviewItem({
           ...result,
-          originalUrl: watchedUrl
+          originalUrl: url
         });
-        toast.success('의상 정보가 분석되었습니다!');
+        toast.success('의상 분석이 완료되었습니다!', { id: 'analyzing' });
+        
+        // 자동 등록이 활성화된 경우 바로 등록
+        if (autoRegister) {
+          setTimeout(() => {
+            addPreviewItemAutomatically(result, url);
+          }, 1000); // 1초 후 자동 등록
+        }
       } else {
-        setError('의상 정보를 분석할 수 없습니다.');
+        toast.error('의상 분석에 실패했습니다', { id: 'analyzing' });
       }
-    } catch (err) {
-      console.error('Analysis error:', err);
-      setError('분석 중 오류가 발생했습니다.');
+    } catch (error) {
+      console.error('분석 실패:', error);
+      toast.error('의상 분석 중 오류가 발생했습니다', { id: 'analyzing' });
     } finally {
       setIsAnalyzing(false);
     }
+  };
+
+  // 자동 등록 함수
+  const addPreviewItemAutomatically = (result: SimpleAnalysisResult, url: string) => {
+    const newItem: ClothingItem = {
+      id: generateId(),
+      name: result.name,
+      category: result.category as ClothingCategoryType,
+      brand: result.brand || 'Unknown',
+      price: result.price || 0,
+      imageUrl: result.imageUrl || '',
+      originalUrl: url,
+      description: result.description || '',
+      colors: result.colors || [],
+      material: result.material || '',
+      fit: result.fit || '',
+      sizes: [],
+      tags: [],
+      createdAt: new Date().toISOString()
+    };
+
+    onAddItem(newItem);
+    setPreviewItem(null);
+    reset();
+    toast.success(`"${result.name}"이(가) 자동으로 등록되었습니다! 🎉`);
   };
 
   // 미리보기 아이템 추가
@@ -135,48 +175,57 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
       </h2>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        {/* URL 입력 */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            상품 URL
-          </label>
-          <div className="flex gap-2">
-            <input
-              {...register('url')}
-              type="url"
-              placeholder="https://example.com/product/123"
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-            />
-            <button
-              type="button"
-              onClick={analyzeUrl}
-              disabled={!watchedUrl || isAnalyzing}
-              className={cn(
-                'px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2',
-                watchedUrl && !isAnalyzing
-                  ? 'bg-purple-600 text-white hover:bg-purple-700'
-                  : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-              )}
-            >
-              {isAnalyzing ? (
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  분석중
-                </div>
-              ) : (
-                '분석'
-              )}
-            </button>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              상품 URL *
+            </label>
+            <div className="flex gap-2">
+              <input
+                {...register('url')}
+                type="url"
+                placeholder="https://www.musinsa.com/products/..."
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              />
+              <button
+                type="button"
+                onClick={analyzeUrl}
+                disabled={isAnalyzing}
+                className={cn(
+                  "px-4 py-2 rounded-lg text-white font-medium transition-colors",
+                  isAnalyzing
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-purple-600 hover:bg-purple-700"
+                )}
+              >
+                {isAnalyzing ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    분석중
+                  </div>
+                ) : (
+                  '🤖 AI 분석'
+                )}
+              </button>
+            </div>
+            {errors.url && (
+              <p className="mt-1 text-sm text-red-600">{errors.url.message}</p>
+            )}
           </div>
-          
-          {/* URL 예시 */}
-          <div className="mt-2 text-xs text-gray-500">
-            <p>지원하는 URL 형식:</p>
-            <ul className="list-disc list-inside mt-1 space-y-1">
-              <li>쇼핑몰 상품 페이지 URL</li>
-              <li>직접 이미지 URL (.jpg, .png, .gif, .webp)</li>
-              <li>브랜드 공식 온라인 스토어 URL</li>
-            </ul>
+
+          {/* 자동 등록 설정 */}
+          <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg">
+            <input
+              type="checkbox"
+              id="autoRegister"
+              checked={autoRegister}
+              onChange={(e) => setAutoRegister(e.target.checked)}
+              className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+            />
+            <label htmlFor="autoRegister" className="flex items-center gap-2 text-sm font-medium text-gray-700">
+              <span className="text-lg">⚡</span>
+              분석 완료 시 자동으로 의상 목록에 추가
+            </label>
           </div>
         </div>
 
@@ -190,18 +239,32 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
           </div>
         )}
 
-        {/* 분석 결과 미리보기 */}
+        {/* AI 분석 결과 미리보기 */}
         {previewItem && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="bg-gradient-to-r from-green-50 to-blue-50 p-6 rounded-xl border border-green-200">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-blue-900">AI 분석 결과</h3>
-              <button
-                type="button"
-                onClick={addPreviewItem}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm"
-              >
-                이 의상 추가하기
-              </button>
+              <h3 className="text-lg font-semibold text-green-800 flex items-center gap-2">
+                <span className="text-xl">✨</span>
+                AI 분석 완료
+              </h3>
+              <div className="flex gap-2">
+                {!autoRegister && (
+                  <button
+                    type="button"
+                    onClick={addPreviewItem}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                  >
+                    이 의상 추가하기
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setPreviewItem(null)}
+                  className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors text-sm"
+                >
+                  다시 분석
+                </button>
+              </div>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -247,30 +310,39 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
                   </select>
                 </div>
 
-                {previewItem.brand && (
+                {/* 브랜드 정보 - 강화된 표시 */}
+                {previewItem.brand && previewItem.brand !== 'Unknown' && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <span className="text-lg">🏷️</span>
                       브랜드
+                      <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                        AI 인식
+                      </span>
                     </label>
                     <input
                       type="text"
                       value={previewItem.brand}
                       readOnly
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                      className="w-full px-3 py-2 border border-green-300 rounded-lg bg-green-50 font-medium"
                     />
                   </div>
                 )}
 
-                {previewItem.price && (
+                {previewItem.price && previewItem.price > 0 && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <span className="text-lg">💰</span>
                       실제 가격
+                      <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                        AI 추정
+                      </span>
                     </label>
                     <input
                       type="text"
                       value={`₩${previewItem.price.toLocaleString()}`}
                       readOnly
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                      className="w-full px-3 py-2 border border-blue-300 rounded-lg bg-blue-50 font-medium"
                     />
                   </div>
                 )}
@@ -278,7 +350,8 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
                 {/* 새로운 속성들 */}
                 {previewItem.material && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <span className="text-lg">🧵</span>
                       소재
                     </label>
                     <input
@@ -292,7 +365,8 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
 
                 {previewItem.fit && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <span className="text-lg">👔</span>
                       핏/스타일
                     </label>
                     <input
@@ -306,7 +380,8 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
 
                 {previewItem.colors && previewItem.colors.length > 0 && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <span className="text-lg">🎨</span>
                       주요 색상
                     </label>
                     <div className="flex flex-wrap gap-2">
@@ -324,7 +399,8 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
 
                 {previewItem.description && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <span className="text-lg">📝</span>
                       스타일 설명
                     </label>
                     <textarea
@@ -338,13 +414,13 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
               </div>
             </div>
 
-            {/* AI 분석 상태 정보 */}
-            <div className="mt-4 p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg">
-              <h4 className="font-medium text-blue-800 mb-2 flex items-center gap-2">
+            {/* AI 분석 상태 정보 - 개선된 버전 */}
+            <div className="mt-4 p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg border border-indigo-200">
+              <h4 className="font-medium text-indigo-800 mb-3 flex items-center gap-2">
                 <span className="text-lg">🤖</span>
-                AI 분석 정보
+                AI 분석 품질 리포트
               </h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-sm">
                 <div className="flex items-center gap-2">
                   <span className={`inline-block w-3 h-3 rounded-full ${
                     previewItem.imageUrl ? 'bg-green-500' : 'bg-red-500'
@@ -354,14 +430,35 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="inline-block w-3 h-3 rounded-full bg-blue-500"></span>
-                  <span className="text-gray-700">카테고리: 자동 분류</span>
+                  <span className={`inline-block w-3 h-3 rounded-full ${
+                    previewItem.brand && previewItem.brand !== 'Unknown' ? 'bg-green-500' : 'bg-yellow-500'
+                  }`}></span>
+                  <span className="text-gray-700">
+                    브랜드: {previewItem.brand && previewItem.brand !== 'Unknown' ? '인식 완료' : '추정'}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="inline-block w-3 h-3 rounded-full bg-purple-500"></span>
-                  <span className="text-gray-700">GPT-4o 분석</span>
+                  <span className={`inline-block w-3 h-3 rounded-full ${
+                    previewItem.price && previewItem.price > 0 ? 'bg-green-500' : 'bg-yellow-500'
+                  }`}></span>
+                  <span className="text-gray-700">
+                    가격: {previewItem.price && previewItem.price > 0 ? '추정 완료' : '기본값'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="inline-block w-3 h-3 rounded-full bg-blue-500"></span>
+                  <span className="text-gray-700">GPT-4o Vision</span>
                 </div>
               </div>
+              
+              {autoRegister && (
+                <div className="mt-3 p-2 bg-green-100 rounded-lg">
+                  <p className="text-sm text-green-800 flex items-center gap-2">
+                    <span className="text-lg">⚡</span>
+                    자동 등록이 활성화되어 있습니다. 잠시 후 자동으로 의상 목록에 추가됩니다.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}
