@@ -89,30 +89,51 @@ async function analyzeHTMLContent(htmlContent: string): Promise<SimpleAnalysisRe
     });
 
     console.log('🎯 OpenAI API 응답 수신 완료');
-    const content = response.choices[0]?.message?.content;
+    console.log('📊 OpenAI API 전체 응답 구조:', JSON.stringify(response, null, 2));
     
-    if (!content) {
-      throw new Error('OpenAI API 응답이 비어있습니다');
+    // 응답 구조 안전성 검사
+    if (!response.choices || !Array.isArray(response.choices) || response.choices.length === 0) {
+      console.error('❌ OpenAI API 응답 구조가 올바르지 않음:', response);
+      throw new Error('OpenAI API 응답 구조가 올바르지 않습니다');
+    }
+    
+    const choice = response.choices[0];
+    if (!choice || !choice.message) {
+      console.error('❌ OpenAI API 응답의 choice 또는 message가 없음:', choice);
+      throw new Error('OpenAI API 응답의 메시지가 없습니다');
+    }
+    
+    const content = choice.message.content;
+    
+    if (!content || typeof content !== 'string') {
+      console.error('❌ OpenAI API 응답이 비어있거나 유효하지 않음:', content);
+      throw new Error('OpenAI API 응답이 비어있거나 유효하지 않습니다');
     }
 
     console.log('📋 OpenAI API 응답 내용:', content);
 
     // JSON 파싱 시도
     try {
-      const result = JSON.parse(content);
+      // 안전한 문자열 처리 - 앞뒤 공백 제거 및 특수 문자 처리
+      const cleanContent = content.trim();
+      if (!cleanContent) {
+        throw new Error('응답 내용이 비어있습니다');
+      }
+      
+      const result = JSON.parse(cleanContent);
       console.log('✅ JSON 파싱 성공:', result);
       
-      // 기본값 설정
+      // 기본값 설정 - 안전한 값 할당
       return {
-        name: result.name || '상품명 미확인',
-        category: result.category || 'tops',
-        brand: result.brand || 'Unknown',
-        price: result.price || 0,
-        colors: result.colors || ['기본색상'],
-        material: result.material || '',
-        fit: result.fit || '',
-        description: result.description || '',
-        imageUrl: result.imageUrl || ''
+        name: (result.name && typeof result.name === 'string') ? result.name : '상품명 미확인',
+        category: (result.category && typeof result.category === 'string') ? result.category : 'tops',
+        brand: (result.brand && typeof result.brand === 'string') ? result.brand : 'Unknown',
+        price: (typeof result.price === 'number' && result.price >= 0) ? result.price : 0,
+        colors: Array.isArray(result.colors) ? result.colors : ['기본색상'],
+        material: (result.material && typeof result.material === 'string') ? result.material : '',
+        fit: (result.fit && typeof result.fit === 'string') ? result.fit : '',
+        description: (result.description && typeof result.description === 'string') ? result.description : '',
+        imageUrl: (result.imageUrl && typeof result.imageUrl === 'string') ? result.imageUrl : ''
       };
     } catch (parseError) {
       console.error('❌ JSON 파싱 실패:', parseError);
@@ -131,19 +152,56 @@ async function analyzeHTMLContent(htmlContent: string): Promise<SimpleAnalysisRe
 function extractInfoFromText(text: string): SimpleAnalysisResult {
   console.log('📝 텍스트에서 정보 추출 시도');
   
-  // 간단한 패턴 매칭으로 정보 추출
-  const nameMatch = text.match(/이름|상품명|name[:\s]+([^\n,]+)/i);
-  const brandMatch = text.match(/브랜드|brand[:\s]+([^\n,]+)/i);
-  const priceMatch = text.match(/가격|price[:\s]+([0-9,]+)/i);
+  // 안전한 문자열 처리 - null/undefined 체크
+  const safeText = text && typeof text === 'string' ? text : '';
   
-  return {
-    name: nameMatch ? nameMatch[1].trim() : 'AI 분석 상품',
-    category: 'tops',
-    brand: brandMatch ? brandMatch[1].trim() : 'Unknown',
-    price: priceMatch ? parseInt(priceMatch[1].replace(/,/g, '')) : 0,
-    colors: ['기본색상'],
-    description: 'OpenAI API로 분석된 상품입니다.'
-  };
+  try {
+    // 간단한 패턴 매칭으로 정보 추출
+    const nameMatch = safeText.match(/이름|상품명|name[:\s]+([^\n,]+)/i);
+    const brandMatch = safeText.match(/브랜드|brand[:\s]+([^\n,]+)/i);
+    const priceMatch = safeText.match(/가격|price[:\s]+([0-9,]+)/i);
+    
+    // 안전한 값 추출
+    let extractedName = 'AI 분석 상품';
+    let extractedBrand = 'Unknown';
+    let extractedPrice = 0;
+    
+    if (nameMatch && nameMatch[1]) {
+      extractedName = nameMatch[1].trim();
+    }
+    
+    if (brandMatch && brandMatch[1]) {
+      extractedBrand = brandMatch[1].trim();
+    }
+    
+    if (priceMatch && priceMatch[1]) {
+      const priceStr = priceMatch[1].replace(/,/g, '');
+      const parsedPrice = parseInt(priceStr);
+      if (!isNaN(parsedPrice) && parsedPrice >= 0) {
+        extractedPrice = parsedPrice;
+      }
+    }
+    
+    return {
+      name: extractedName,
+      category: 'tops',
+      brand: extractedBrand,
+      price: extractedPrice,
+      colors: ['기본색상'],
+      description: 'OpenAI API로 분석된 상품입니다.'
+    };
+  } catch (error) {
+    console.error('❌ 텍스트 추출 중 오류 발생:', error);
+    // 모든 것이 실패했을 때 기본값 반환
+    return {
+      name: 'AI 분석 상품',
+      category: 'tops',
+      brand: 'Unknown',
+      price: 0,
+      colors: ['기본색상'],
+      description: 'OpenAI API로 분석된 상품입니다.'
+    };
+  }
 }
 
 // URL에서 HTML을 가져와서 분석하는 함수
