@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { Toaster, toast } from 'react-hot-toast'
-import { Plus, Sparkles, Shirt, User, Check } from 'lucide-react'
+import { Plus, Sparkles, Shirt, User, Check, Wand2 } from 'lucide-react'
 import { cn } from './utils'
 import { useLocalStorage } from './hooks/useLocalStorage'
 import { VersionInfo } from './components/VersionInfo'
 import ClothingItemForm from './components/ClothingItemForm'
 import OutfitGenerator from './components/OutfitGenerator'
 import UserProfileForm from './components/UserProfileForm'
+import SettingsForm from './components/SettingsForm'
 import { initializeSimpleGenerator } from './utils/openai'
 import type { 
   ClothingItem, 
@@ -16,11 +17,12 @@ import type {
 } from './types'
 
 // 간단한 3단계 플로우
-type AppStep = 'clothes' | 'profile' | 'generate'
+type AppStep = 'add-clothes' | 'profile' | 'generate'
 
 function App() {
-  const [currentStep, setCurrentStep] = useState<AppStep>('clothes')
+  const [currentStep, setCurrentStep] = useState<AppStep>('add-clothes')
   const [isLoading, setIsLoading] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
 
   // 간단한 프로필 (성별, 체형만)
   const [selectedGender, setSelectedGender] = useLocalStorage<Gender | null>('aivatar-selected-gender', null)
@@ -30,7 +32,7 @@ function App() {
   const [generatedOutfits, setGeneratedOutfits] = useLocalStorage<OutfitGeneration[]>('aivatar-generated-outfits', [])
 
   // 무료 API 초기화
-  useEffect(() => {
+  React.useEffect(() => {
     initializeSimpleGenerator()
   }, [])
 
@@ -71,20 +73,22 @@ function App() {
   }
 
   const handleReset = () => {
-    setCurrentStep('clothes')
+    setCurrentStep('add-clothes')
     setSelectedGender(null)
     setSelectedBodyType(null)
     setSelectedItems([])
     toast.success('처음부터 다시 시작합니다')
   }
 
-  const handleProfileComplete = () => {
+  const handleProfileComplete = (gender: string, bodyType: string) => {
+    setSelectedGender(gender as Gender)
+    setSelectedBodyType(bodyType as BodyType)
     setCurrentStep('generate')
   }
 
   const getStepInfo = () => {
     switch (currentStep) {
-      case 'clothes':
+      case 'add-clothes':
         return { title: '의상 추가', description: '코디에 사용할 의상들을 추가해보세요', progress: 33 }
       case 'profile':
         return { title: '간단한 정보', description: '성별과 체형을 선택해주세요', progress: 66 }
@@ -101,7 +105,7 @@ function App() {
 
   const steps = [
     { 
-      id: 'clothes', 
+      id: 'add-clothes', 
       label: '의상 추가', 
       icon: Plus, 
       enabled: true,
@@ -124,97 +128,100 @@ function App() {
   ]
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50">
       <Toaster position="top-right" />
       
       {/* 헤더 */}
-      <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-40">
+      <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+                <Sparkles className="w-5 h-5 text-white" />
+              </div>
               <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
                 AIVATAR
               </h1>
-              <div className="hidden md:block ml-4 text-sm text-gray-500">
-                AI 착장 생성 플랫폼
-              </div>
+              <span className="text-sm text-gray-500">AI Virtual Try-On</span>
             </div>
-            
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handleReset}
-                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                처음부터 다시 시작
-              </button>
-            </div>
+            <VersionInfo />
           </div>
         </div>
       </header>
 
-      {/* 탭 네비게이션 */}
-      <nav className="bg-white border-b border-gray-200">
+      {/* 진행 상태 표시 */}
+      <div className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-center">
-            <div className="flex space-x-8">
-              {steps.map((step, index) => (
-                <button
-                  key={step.id}
-                  onClick={() => step.enabled && setCurrentStep(step.id as AppStep)}
-                  disabled={!step.enabled}
-                  className={cn(
-                    'flex items-center gap-3 px-4 py-4 text-sm font-medium border-b-2 transition-colors',
-                    currentStep === step.id
-                      ? 'border-purple-500 text-purple-600'
-                      : step.enabled
-                        ? 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                        : 'border-transparent text-gray-400 cursor-not-allowed'
-                  )}
-                >
-                  <div className={cn(
-                    'w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium',
-                    currentStep === step.id
-                      ? 'bg-purple-500 text-white'
-                      : step.completed
-                        ? 'bg-green-500 text-white'
-                        : step.enabled
-                          ? 'bg-gray-300 text-gray-700'
-                          : 'bg-gray-200 text-gray-400'
-                  )}>
-                    {step.completed ? (
-                      <Check className="w-4 h-4" />
-                    ) : (
-                      index + 1
-                    )}
-                  </div>
-                  <span className="hidden sm:block">{step.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </nav>
+          <div className="flex items-center justify-center py-4">
+            <div className="flex items-center space-x-8">
+              {/* 1단계: 의상 추가 */}
+              <div className="flex items-center space-x-3">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                  currentStep === 'add-clothes' 
+                    ? 'bg-purple-500 text-white' 
+                    : canGoToProfile
+                      ? 'bg-green-500 text-white'
+                      : 'bg-gray-200 text-gray-500'
+                }`}>
+                  {canGoToProfile && currentStep !== 'add-clothes' ? '✓' : '1'}
+                </div>
+                <span className={`font-medium ${
+                  currentStep === 'add-clothes' ? 'text-purple-600' : 'text-gray-600'
+                }`}>
+                  의상 추가
+                </span>
+              </div>
 
-      {/* 프로그레스 바 */}
-      <div className="bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="py-3">
-            <div className="flex justify-between text-sm text-gray-600 mb-2">
-              <span>진행률</span>
-              <span>{stepInfo.progress}%</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
-                className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${stepInfo.progress}%` }}
-              />
+              {/* 연결선 */}
+              <div className={`w-16 h-0.5 ${
+                canGoToProfile ? 'bg-green-500' : 'bg-gray-200'
+              }`} />
+
+              {/* 2단계: 프로필 설정 */}
+              <div className="flex items-center space-x-3">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                  currentStep === 'profile' 
+                    ? 'bg-purple-500 text-white' 
+                    : canGoToProfile
+                      ? 'bg-green-500 text-white'
+                      : 'bg-gray-200 text-gray-500'
+                }`}>
+                  {canGoToProfile && currentStep !== 'profile' ? '✓' : '2'}
+                </div>
+                <span className={`font-medium ${
+                  currentStep === 'profile' ? 'text-purple-600' : 'text-gray-600'
+                }`}>
+                  기본 정보
+                </span>
+              </div>
+
+              {/* 연결선 */}
+              <div className={`w-16 h-0.5 ${
+                canGoToProfile ? 'bg-green-500' : 'bg-gray-200'
+              }`} />
+
+              {/* 3단계: 코디 생성 */}
+              <div className="flex items-center space-x-3">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                  currentStep === 'generate' 
+                    ? 'bg-purple-500 text-white' 
+                    : 'bg-gray-200 text-gray-500'
+                }`}>
+                  3
+                </div>
+                <span className={`font-medium ${
+                  currentStep === 'generate' ? 'text-purple-600' : 'text-gray-600'
+                }`}>
+                  Virtual Try-On
+                </span>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
       {/* 메인 콘텐츠 */}
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* 단계 헤더 */}
         <div className="mb-8 text-center">
           <h2 className="text-3xl font-bold text-gray-900 mb-2">{stepInfo.title}</h2>
@@ -223,7 +230,7 @@ function App() {
 
         {/* 단계별 컴포넌트 렌더링 */}
         <div className="max-w-4xl mx-auto">
-          {currentStep === 'clothes' && (
+          {currentStep === 'add-clothes' && (
             <div className="space-y-8">
               {/* 의상 추가 */}
               <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
@@ -347,10 +354,37 @@ function App() {
         </div>
       </main>
 
-      {/* 버전 정보 */}
-      <footer className="fixed bottom-4 right-4 z-30">
-        <VersionInfo />
-      </footer>
+      {/* 설정 모달 */}
+      {showSettings && (
+        <SettingsForm onClose={() => setShowSettings(false)} />
+      )}
+
+      {/* 플로팅 도움말 버튼 */}
+      <div className="fixed bottom-6 right-6 z-40">
+        <div className="bg-white rounded-lg shadow-lg p-4 max-w-xs">
+          <h4 className="font-semibold text-gray-800 mb-2">💡 사용 가이드</h4>
+          <div className="text-sm text-gray-600 space-y-1">
+            {currentStep === 'add-clothes' && (
+              <>
+                <p>• 온라인 쇼핑몰 상품 URL을 입력하세요</p>
+                <p>• 여러 의상을 추가할 수 있습니다</p>
+              </>
+            )}
+            {currentStep === 'profile' && (
+              <>
+                <p>• 성별과 체형을 선택하세요</p>
+                <p>• 더 정확한 AI 추천을 위해 필요합니다</p>
+              </>
+            )}
+            {currentStep === 'generate' && (
+              <>
+                <p>• AI 설정에서 API 키를 등록하면 고품질 이미지를 생성할 수 있습니다</p>
+                <p>• 기준 이미지를 업로드하면 더 정확한 결과를 얻을 수 있습니다</p>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* 로딩 오버레이 */}
       {isLoading && (

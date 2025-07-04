@@ -1,37 +1,42 @@
 import { useState } from 'react';
-import { User, Check, ArrowRight } from 'lucide-react';
-import type { Gender, BodyType } from '../types';
+import { User, Check, ArrowRight, ArrowLeft } from 'lucide-react';
 import { cn } from '../utils';
-import GenderSelector from './GenderSelector';
-import BodyTypeSelector from './BodyTypeSelector';
 
 interface UserProfileFormProps {
-  selectedGender: Gender | null;
-  selectedBodyType: BodyType | null;
-  onGenderSelect: (gender: Gender) => void;
-  onBodyTypeSelect: (bodyType: BodyType) => void;
-  onComplete: () => void;
-  className?: string;
+  onComplete: (gender: string, bodyType: string) => void;
+  onBack: () => void;
 }
 
+const genderOptions = [
+  { id: 'male', name: '남성', icon: '👨' },
+  { id: 'female', name: '여성', icon: '👩' }
+];
+
+const bodyTypeOptions = [
+  { id: 'slender', name: '슬렌더', icon: '🏃‍♀️', description: '마른 체형' },
+  { id: 'athletic', name: '애슬레틱', icon: '💪', description: '운동선수형' },
+  { id: 'pear', name: '배 체형', icon: '🍐', description: '하체가 발달된 체형' },
+  { id: 'apple', name: '사과 체형', icon: '🍎', description: '상체가 발달된 체형' },
+  { id: 'hourglass', name: '모래시계', icon: '⏳', description: '균형 잡힌 체형' },
+  { id: 'rectangle', name: '직사각형', icon: '📐', description: '직선적인 체형' }
+];
+
 export default function UserProfileForm({
-  selectedGender,
-  selectedBodyType,
-  onGenderSelect,
-  onBodyTypeSelect,
   onComplete,
-  className
+  onBack
 }: UserProfileFormProps) {
   const [currentStep, setCurrentStep] = useState<'gender' | 'bodyType'>('gender');
+  const [selectedGender, setSelectedGender] = useState<string>('');
+  const [selectedBodyType, setSelectedBodyType] = useState<string>('');
   const [isCompleting, setIsCompleting] = useState(false);
 
-  const handleGenderSelect = (gender: Gender) => {
-    onGenderSelect(gender);
+  const handleGenderSelect = (gender: string) => {
+    setSelectedGender(gender);
     setCurrentStep('bodyType');
   };
 
-  const handleBodyTypeSelect = (bodyType: BodyType) => {
-    onBodyTypeSelect(bodyType);
+  const handleBodyTypeSelect = (bodyType: string) => {
+    setSelectedBodyType(bodyType);
   };
 
   const handleComplete = async () => {
@@ -42,7 +47,7 @@ export default function UserProfileForm({
     try {
       // 간단한 로딩 효과
       await new Promise(resolve => setTimeout(resolve, 500));
-      onComplete();
+      onComplete(selectedGender, selectedBodyType);
     } catch (error) {
       console.error('프로필 완성 중 오류:', error);
     } finally {
@@ -53,7 +58,7 @@ export default function UserProfileForm({
   const canComplete = selectedGender && selectedBodyType;
 
   return (
-    <div className={cn('w-full max-w-2xl mx-auto', className)}>
+    <div className="w-full max-w-2xl mx-auto">
       <div className="bg-white rounded-2xl shadow-lg p-8">
         {/* 헤더 */}
         <div className="text-center mb-8">
@@ -98,10 +103,34 @@ export default function UserProfileForm({
               <h3 className="text-lg font-semibold text-gray-900 mb-4 text-center">
                 성별을 선택해주세요
               </h3>
-              <GenderSelector
-                selectedGender={selectedGender}
-                onGenderSelect={handleGenderSelect}
-              />
+              <div className="grid grid-cols-2 gap-4">
+                {genderOptions.map((gender) => (
+                  <button
+                    key={gender.id}
+                    onClick={() => handleGenderSelect(gender.id)}
+                    className={cn(
+                      'p-6 rounded-xl border-2 transition-all hover:scale-105',
+                      selectedGender === gender.id
+                        ? 'border-purple-500 bg-purple-50 text-purple-700'
+                        : 'border-gray-200 hover:border-purple-300 hover:bg-purple-50'
+                    )}
+                  >
+                    <div className="text-4xl mb-2">{gender.icon}</div>
+                    <div className="font-medium">{gender.name}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            {/* 뒤로가기 버튼 */}
+            <div className="flex justify-center pt-4">
+              <button
+                onClick={onBack}
+                className="flex items-center space-x-2 px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>이전 단계</span>
+              </button>
             </div>
           </div>
         )}
@@ -113,15 +142,38 @@ export default function UserProfileForm({
               <h3 className="text-lg font-semibold text-gray-900 mb-4 text-center">
                 체형을 선택해주세요
               </h3>
-              <BodyTypeSelector
-                selectedBodyType={selectedBodyType}
-                onBodyTypeSelect={handleBodyTypeSelect}
-              />
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {bodyTypeOptions.map((bodyType) => (
+                  <button
+                    key={bodyType.id}
+                    onClick={() => handleBodyTypeSelect(bodyType.id)}
+                    className={cn(
+                      'p-4 rounded-xl border-2 transition-all hover:scale-105',
+                      selectedBodyType === bodyType.id
+                        ? 'border-purple-500 bg-purple-50 text-purple-700'
+                        : 'border-gray-200 hover:border-purple-300 hover:bg-purple-50'
+                    )}
+                  >
+                    <div className="text-3xl mb-2">{bodyType.icon}</div>
+                    <div className="font-medium text-sm">{bodyType.name}</div>
+                    <div className="text-xs text-gray-500 mt-1">{bodyType.description}</div>
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {/* 완료 버튼 */}
-            {selectedBodyType && (
-              <div className="flex justify-center pt-6">
+            {/* 네비게이션 버튼들 */}
+            <div className="flex justify-between items-center pt-6">
+              <button
+                onClick={() => setCurrentStep('gender')}
+                className="flex items-center space-x-2 px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>성별 다시 선택</span>
+              </button>
+
+              {/* 완료 버튼 */}
+              {selectedBodyType && (
                 <button
                   onClick={handleComplete}
                   disabled={!canComplete || isCompleting}
@@ -144,8 +196,8 @@ export default function UserProfileForm({
                     </>
                   )}
                 </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         )}
 
@@ -165,14 +217,9 @@ export default function UserProfileForm({
               {selectedBodyType && (
                 <div className="flex items-center gap-2 px-3 py-2 bg-pink-50 text-pink-700 rounded-lg text-sm">
                   <span className="text-lg">
-                    {selectedBodyType.id === 'slender' && '🏃‍♀️'}
-                    {selectedBodyType.id === 'athletic' && '💪'}
-                    {selectedBodyType.id === 'pear' && '🍐'}
-                    {selectedBodyType.id === 'apple' && '🍎'}
-                    {selectedBodyType.id === 'hourglass' && '⏳'}
-                    {selectedBodyType.id === 'rectangle' && '📐'}
+                    {bodyTypeOptions.find(bt => bt.id === selectedBodyType)?.icon}
                   </span>
-                  {selectedBodyType.name}
+                  {bodyTypeOptions.find(bt => bt.id === selectedBodyType)?.name}
                 </div>
               )}
             </div>

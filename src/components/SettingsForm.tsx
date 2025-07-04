@@ -1,203 +1,324 @@
-import { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+import React, { useState, useEffect } from 'react';
+import { useLocalStorage } from '../hooks/useLocalStorage';
+import { updateAIConfig, type AIApiConfig } from '../utils/openai';
 import { Key, Eye, EyeOff, Settings, CheckCircle } from 'lucide-react';
 import { cn } from '../utils';
-import type { SettingsForm as SettingsFormType, AISettings } from '../types';
-
-const settingsSchema = z.object({
-  openaiApiKey: z.string()
-    .min(1, 'API Key를 입력해주세요')
-    .min(10, 'API Key가 너무 짧습니다')
-    .startsWith('sk-', 'OpenAI API Key는 sk-로 시작해야 합니다')
-});
 
 interface SettingsFormProps {
-  onSubmit: (settings: AISettings) => void;
-  initialSettings?: AISettings;
-  className?: string;
+  onClose: () => void;
 }
 
-export default function SettingsForm({ onSubmit, initialSettings, className }: SettingsFormProps) {
-  const [showApiKey, setShowApiKey] = useState(false);
-  const [isConnecting, setIsConnecting] = useState(false);
-
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isValid },
-    watch
-  } = useForm<SettingsFormType>({
-    resolver: zodResolver(settingsSchema),
-    defaultValues: {
-      openaiApiKey: initialSettings?.openaiApiKey || ''
-    },
-    mode: 'onChange'
+const SettingsForm: React.FC<SettingsFormProps> = ({ onClose }) => {
+  const [apiConfig, setApiConfig] = useLocalStorage<AIApiConfig>('ai-api-config', {
+    provider: 'fallback'
   });
+  
+  const [formData, setFormData] = useState<AIApiConfig>(apiConfig);
+  const [isLoading, setIsLoading] = useState(false);
+  const [testResult, setTestResult] = useState<string | null>(null);
 
-  const apiKey = watch('openaiApiKey');
+  useEffect(() => {
+    setFormData(apiConfig);
+  }, [apiConfig]);
 
-  const handleFormSubmit = async (data: SettingsFormType) => {
-    setIsConnecting(true);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
     
     try {
-      // API Key 유효성 검증 (실제로는 OpenAI API 호출)
-      await new Promise(resolve => setTimeout(resolve, 1500)); // 임시 지연
+      // 설정 저장
+      setApiConfig(formData);
+      updateAIConfig(formData);
       
-      onSubmit({
-        ...data,
-        model: 'gpt-4o', // 기본 모델로 설정
-        maxTokens: 4000
-      });
+      setTestResult('설정이 저장되었습니다! 이제 고품질 AI 이미지 생성을 사용할 수 있습니다.');
+      
+      // 3초 후 자동으로 닫기
+      setTimeout(() => {
+        onClose();
+      }, 3000);
+      
     } catch (error) {
-      console.error('Settings submission failed:', error);
+      console.error('설정 저장 실패:', error);
+      setTestResult('설정 저장에 실패했습니다. 다시 시도해주세요.');
     } finally {
-      setIsConnecting(false);
+      setIsLoading(false);
+    }
+  };
+
+  const handleInputChange = (field: keyof AIApiConfig, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const testApiKey = async (provider: 'openai' | 'replicate' | 'lightx') => {
+    setIsLoading(true);
+    setTestResult(null);
+    
+    try {
+      const testConfig = { ...formData, provider };
+      updateAIConfig(testConfig);
+      
+      // 간단한 테스트 요청
+      if (provider === 'openai' && formData.openaiApiKey) {
+        const response = await fetch('https://api.openai.com/v1/models', {
+          headers: {
+            'Authorization': `Bearer ${formData.openaiApiKey}`,
+          },
+        });
+        
+        if (response.ok) {
+          setTestResult('✅ OpenAI API 키가 유효합니다!');
+        } else {
+          setTestResult('❌ OpenAI API 키가 유효하지 않습니다.');
+        }
+      } else if (provider === 'replicate' && formData.replicateApiKey) {
+        const response = await fetch('https://api.replicate.com/v1/models', {
+          headers: {
+            'Authorization': `Token ${formData.replicateApiKey}`,
+          },
+        });
+        
+        if (response.ok) {
+          setTestResult('✅ Replicate API 키가 유효합니다!');
+        } else {
+          setTestResult('❌ Replicate API 키가 유효하지 않습니다.');
+        }
+      } else if (provider === 'lightx' && formData.lightxApiKey) {
+        // LightX API 테스트는 실제 요청 없이 형식만 확인
+        if (formData.lightxApiKey.length > 10) {
+          setTestResult('✅ LightX API 키 형식이 올바릅니다!');
+        } else {
+          setTestResult('❌ LightX API 키 형식이 올바르지 않습니다.');
+        }
+      } else {
+        setTestResult('❌ API 키를 먼저 입력해주세요.');
+      }
+      
+    } catch (error) {
+      console.error('API 키 테스트 실패:', error);
+      setTestResult('❌ API 키 테스트 중 오류가 발생했습니다.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className={cn('w-full max-w-md mx-auto', className)}>
-      <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
-        {/* 헤더 */}
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <Settings className="w-8 h-8 text-blue-600" />
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">AI 설정</h2>
-          <p className="text-gray-600 text-sm leading-relaxed">
-            AI 기반 코디 추천을 위해<br />
-            OpenAI API Key를 설정해주세요
-          </p>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold text-gray-800">AI 설정</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700 text-2xl"
+          >
+            ×
+          </button>
         </div>
 
-        {/* API Key 입력 */}
-        <div className="space-y-3">
-          <label className="block text-sm font-medium text-gray-700">
-            OpenAI API Key
-          </label>
-          
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Key className="h-5 w-5 text-gray-400" />
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* AI 제공자 선택 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              AI 이미지 생성 제공자
+            </label>
+            <select
+              value={formData.provider}
+              onChange={(e) => handleInputChange('provider', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="fallback">기본 (무료, 제한적)</option>
+              <option value="openai">OpenAI DALL-E 3 (고품질)</option>
+              <option value="replicate">Replicate (Virtual Try-On)</option>
+              <option value="lightx">LightX (가상 착용)</option>
+            </select>
+            <p className="text-sm text-gray-500 mt-1">
+              고품질 AI 이미지 생성을 위해서는 API 키가 필요합니다.
+            </p>
+          </div>
+
+          {/* OpenAI API 키 */}
+          <div className="border rounded-lg p-4 bg-gray-50">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold text-gray-800">OpenAI DALL-E 3</h3>
+              <span className="text-sm text-green-600 font-medium">추천</span>
             </div>
-            
-            <input
-              {...register('openaiApiKey')}
-              type={showApiKey ? 'text' : 'password'}
-              placeholder="sk-..."
-              className={cn(
-                'w-full pl-10 pr-12 py-3 border border-gray-200 rounded-xl',
-                'focus:ring-2 focus:ring-blue-500 focus:border-transparent',
-                'transition-all duration-200 text-sm',
-                errors.openaiApiKey 
-                  ? 'border-red-300 bg-red-50' 
-                  : apiKey && isValid 
-                    ? 'border-green-300 bg-green-50'
-                    : 'bg-gray-50 hover:bg-white focus:bg-white'
-              )}
-            />
-            
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  API 키
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="password"
+                    value={formData.openaiApiKey || ''}
+                    onChange={(e) => handleInputChange('openaiApiKey', e.target.value)}
+                    placeholder="sk-..."
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => testApiKey('openai')}
+                    disabled={isLoading || !formData.openaiApiKey}
+                    className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:bg-gray-300"
+                  >
+                    테스트
+                  </button>
+                </div>
+              </div>
+              <div className="text-sm text-gray-600">
+                <p>• 최고 품질의 패션 이미지 생성</p>
+                <p>• 1024x1792 고해상도 지원</p>
+                <p>• 자연스러운 착용감 표현</p>
+                <p>• 비용: 이미지당 약 $0.08</p>
+                <a 
+                  href="https://platform.openai.com/api-keys" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-blue-500 hover:underline"
+                >
+                  → API 키 발급받기
+                </a>
+              </div>
+            </div>
+          </div>
+
+          {/* Replicate API 키 */}
+          <div className="border rounded-lg p-4 bg-gray-50">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold text-gray-800">Replicate</h3>
+              <span className="text-sm text-purple-600 font-medium">Virtual Try-On</span>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  API 키
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="password"
+                    value={formData.replicateApiKey || ''}
+                    onChange={(e) => handleInputChange('replicateApiKey', e.target.value)}
+                    placeholder="r8_..."
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => testApiKey('replicate')}
+                    disabled={isLoading || !formData.replicateApiKey}
+                    className="px-4 py-2 bg-purple-500 text-white rounded-md hover:bg-purple-600 disabled:bg-gray-300"
+                  >
+                    테스트
+                  </button>
+                </div>
+              </div>
+              <div className="text-sm text-gray-600">
+                <p>• 최신 Virtual Try-On 모델 사용</p>
+                <p>• 실제 착용감 시뮬레이션</p>
+                <p>• OutfitAnyone 등 최신 모델 지원</p>
+                <p>• 비용: 사용량에 따라 변동</p>
+                <a 
+                  href="https://replicate.com/account/api-tokens" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-blue-500 hover:underline"
+                >
+                  → API 키 발급받기
+                </a>
+              </div>
+            </div>
+          </div>
+
+          {/* LightX API 키 */}
+          <div className="border rounded-lg p-4 bg-gray-50">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold text-gray-800">LightX</h3>
+              <span className="text-sm text-orange-600 font-medium">가상 착용</span>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  API 키
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="password"
+                    value={formData.lightxApiKey || ''}
+                    onChange={(e) => handleInputChange('lightxApiKey', e.target.value)}
+                    placeholder="lightx_..."
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => testApiKey('lightx')}
+                    disabled={isLoading || !formData.lightxApiKey}
+                    className="px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 disabled:bg-gray-300"
+                  >
+                    테스트
+                  </button>
+                </div>
+              </div>
+              <div className="text-sm text-gray-600">
+                <p>• 빠른 의상 변경 API</p>
+                <p>• 실시간 미리보기 지원</p>
+                <p>• 다양한 스타일 적용</p>
+                <p>• 비용: 무료 크레딧 포함</p>
+                <a 
+                  href="https://www.lightxeditor.com/api" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-blue-500 hover:underline"
+                >
+                  → API 키 발급받기
+                </a>
+              </div>
+            </div>
+          </div>
+
+          {/* 테스트 결과 */}
+          {testResult && (
+            <div className={`p-4 rounded-md ${
+              testResult.includes('✅') 
+                ? 'bg-green-50 border border-green-200 text-green-800' 
+                : 'bg-red-50 border border-red-200 text-red-800'
+            }`}>
+              {testResult}
+            </div>
+          )}
+
+          {/* 안내 메시지 */}
+          <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+            <h4 className="font-semibold text-blue-800 mb-2">💡 사용 안내</h4>
+            <ul className="text-sm text-blue-700 space-y-1">
+              <li>• API 키 없이도 기본 이미지 생성 기능을 사용할 수 있습니다</li>
+              <li>• 고품질 AI 이미지를 원하시면 OpenAI DALL-E 3를 추천합니다</li>
+              <li>• Virtual Try-On 기능을 원하시면 Replicate 또는 LightX를 사용해주세요</li>
+              <li>• API 키는 브라우저에만 저장되며 외부로 전송되지 않습니다</li>
+            </ul>
+          </div>
+
+          {/* 버튼 */}
+          <div className="flex gap-3">
             <button
               type="button"
-              onClick={() => setShowApiKey(!showApiKey)}
-              className="absolute inset-y-0 right-0 pr-3 flex items-center"
+              onClick={onClose}
+              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
             >
-              {showApiKey ? (
-                <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-              ) : (
-                <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-              )}
+              취소
             </button>
-
-            {apiKey && isValid && (
-              <div className="absolute inset-y-0 right-8 flex items-center">
-                <CheckCircle className="h-5 w-5 text-green-500" />
-              </div>
-            )}
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:bg-gray-300"
+            >
+              {isLoading ? '저장 중...' : '저장'}
+            </button>
           </div>
-
-          {errors.openaiApiKey && (
-            <p className="text-red-600 text-xs mt-1 flex items-center gap-1">
-              <span className="w-1 h-1 bg-red-600 rounded-full"></span>
-              {errors.openaiApiKey.message}
-            </p>
-          )}
-          
-          {!errors.openaiApiKey && apiKey && (
-            <p className="text-green-600 text-xs mt-1 flex items-center gap-1">
-              <CheckCircle className="w-3 h-3" />
-              유효한 API Key 형식입니다
-            </p>
-          )}
-        </div>
-
-        {/* AI 모델 정보 */}
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-          <h4 className="font-medium text-blue-900 text-sm mb-2">
-            🤖 사용되는 AI 모델
-          </h4>
-          <div className="text-xs text-blue-800 space-y-1">
-            <div>• <strong>의상 분석:</strong> GPT-4o (정확한 상품 정보 추출)</div>
-            <div>• <strong>코디 추천:</strong> GPT-4o (빠른 스타일링 분석)</div>
-            <div>• <strong>이미지 생성:</strong> DALL-E 3 (고품질 착장 이미지)</div>
-          </div>
-          <p className="text-xs text-blue-700 mt-2">
-            각 기능에 최적화된 모델이 자동으로 선택됩니다.
-          </p>
-        </div>
-
-        {/* API Key 가이드 */}
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-          <h4 className="font-medium text-blue-900 text-sm mb-2">
-            📖 API Key 발급 방법
-          </h4>
-          <ol className="text-xs text-blue-800 space-y-1 list-decimal list-inside">
-            <li>OpenAI 웹사이트 회원가입</li>
-            <li>API Keys 페이지에서 새 키 생성</li>
-            <li>생성된 키를 복사하여 입력</li>
-          </ol>
-          <a 
-            href="https://platform.openai.com/api-keys" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="text-blue-600 text-xs underline mt-2 inline-block hover:text-blue-800"
-          >
-            OpenAI API Keys 페이지 →
-          </a>
-        </div>
-
-        {/* 제출 버튼 */}
-        <button
-          type="submit"
-          disabled={!isValid || isConnecting}
-          className={cn(
-            'w-full py-3 px-4 rounded-xl font-medium transition-all duration-200',
-            'focus:ring-2 focus:ring-blue-500 focus:ring-offset-2',
-            isValid && !isConnecting
-              ? 'bg-blue-600 text-white hover:bg-blue-700 transform hover:scale-[1.02]'
-              : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-          )}
-        >
-          {isConnecting ? (
-            <div className="flex items-center justify-center gap-2">
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              연결 중...
-            </div>
-          ) : (
-            '설정 완료'
-          )}
-        </button>
-
-        {/* 보안 안내 */}
-        <div className="text-center">
-          <p className="text-xs text-gray-500 leading-relaxed">
-            🔒 API Key는 브라우저에만 저장되며,<br />
-            외부로 전송되지 않습니다
-          </p>
-        </div>
-      </form>
+        </form>
+      </div>
     </div>
   );
-} 
+};
+
+export default SettingsForm; 
