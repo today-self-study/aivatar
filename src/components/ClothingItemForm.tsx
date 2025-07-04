@@ -30,11 +30,32 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
       // OpenAI API 기반 분석 안내
       toast.success('OpenAI API를 사용하여 상품 정보를 분석합니다', { duration: 3000 });
 
-      const { analyzeClothingFromUrl } = await import('../utils/openai');
+      // 동적 import로 openai 모듈 로드
+      const { analyzeClothingFromUrl, getCurrentConfig } = await import('../utils/openai');
+      
+      // 현재 AI 설정 상태 확인 및 디버깅
+      const currentConfig = getCurrentConfig();
+      console.log('🔍 현재 AI 설정 상태:', currentConfig);
+      console.log('🔍 API 키 존재 여부:', !!currentConfig.openaiApiKey);
+      console.log('🔍 AI 사용 여부:', currentConfig.useAI);
+      
+      // localStorage에서 직접 확인
+      const storedConfig = localStorage.getItem('ai-api-config');
+      console.log('🔍 localStorage AI 설정:', storedConfig);
+      
+      if (!currentConfig.openaiApiKey) {
+        throw new Error('OpenAI API 키가 설정되지 않았습니다. 설정 페이지에서 API 키를 입력해주세요.');
+      }
+      
+      if (!currentConfig.useAI) {
+        throw new Error('AI 분석이 비활성화되어 있습니다. 설정 페이지에서 AI 분석을 활성화해주세요.');
+      }
 
       setAnalysisStatus('OpenAI API 분석 중... (HTML 또는 스크린샷 기반)');
       
+      console.log('🚀 analyzeClothingFromUrl 함수 호출 시작');
       const result = await analyzeClothingFromUrl(url);
+      console.log('🎯 analyzeClothingFromUrl 함수 호출 완료:', result);
 
       if (result) {
         console.log('✅ OpenAI API 분석 성공:', result);
