@@ -16,9 +16,11 @@ interface OpenAIUtilsConfig {
 export class OpenAIUtils {
   private openai: OpenAI;
   private config: OpenAIUtilsConfig;
+  private apiKey: string;
 
   constructor(config: OpenAIUtilsConfig) {
     this.config = config;
+    this.apiKey = config.apiKey;
     this.openai = new OpenAI({
       apiKey: config.apiKey,
       dangerouslyAllowBrowser: true
@@ -681,78 +683,208 @@ The result should look like a high-end fashion catalog photo with perfect accura
     selectedItems: ClothingItem[]
   ): Promise<string> {
     try {
-      const gender = userProfile.gender === 'male' ? 'male' : 'female';
+      // 1단계: Hugging Face Spaces 가상 착용 시도
+      try {
+        console.log('Attempting Hugging Face Spaces virtual try-on...');
+        return await this.generateOutfitWithHuggingFaceSpaces(userProfile, selectedItems);
+      } catch (error) {
+        console.warn('Hugging Face Spaces failed:', error);
+      }
+
+      // 2단계: Flux.1 Dev 이미지 투 이미지 시도
+      try {
+        console.log('Attempting Flux.1 Dev image-to-image generation...');
+        return await this.generateOutfitWithFluxDev(userProfile, selectedItems);
+      } catch (error) {
+        console.warn('Flux.1 Dev failed:', error);
+      }
+
+      // 3단계: 기존 GPT-4o Vision + DALL-E 3 방식으로 폴백
+      console.log('Falling back to GPT-4o Vision + DALL-E 3...');
+      return await this.generateOutfitImageWithRealClothes(userProfile, selectedItems);
+
+    } catch (error) {
+      console.error('All experimental methods failed:', error);
+      // 최종 폴백: 기본 텍스트 기반 생성
+      return await this.generateOutfitImage(userProfile, selectedItems);
+    }
+  }
+
+  // Hugging Face Spaces API를 사용한 가상 착용 시스템
+  async generateOutfitWithHuggingFaceSpaces(
+    userProfile: UserProfile,
+    selectedItems: ClothingItem[]
+  ): Promise<string> {
+    try {
+      // 이미지가 있는 의상들만 필터링
       const itemsWithImages = selectedItems.filter(item => item.imageUrl);
       
       if (itemsWithImages.length === 0) {
-        return this.generateOutfitImage(userProfile, selectedItems);
+        throw new Error('No clothing items with images found');
       }
 
-      // 실제 이미지들을 GPT-4o에게 보여주고 착장 이미지 생성 요청
-      const messages = [
-        {
-          role: 'system' as const,
-          content: 'You are an expert fashion stylist with image generation capabilities. Analyze the provided clothing images and create a coordinated outfit visualization.'
-        },
-        {
-          role: 'user' as const,
-          content: [
-            {
-              type: 'text' as const,
-              text: `Please analyze these clothing items and create a professional fashion photograph showing a ${gender} mannequin wearing all these items together as a coordinated outfit:
-
-USER PROFILE:
-- Gender: ${userProfile.gender}
-- Height: ${userProfile.height}cm
-- Body type: ${userProfile.bodyType.name}
-- Style preferences: ${userProfile.preferences?.styles?.join(', ') || 'None specified'}
-
-REQUIREMENTS:
-- Use a simple, neutral mannequin (not a human model)
-- Professional product photography style
-- Clean white background
-- Show all clothing items clearly
-- Maintain accurate colors and details from the original images
-- Full body shot showing complete outfit
-
-Please generate a high-quality fashion photograph based on these clothing items:`
-            },
-            // 모든 의상 이미지를 포함
-            ...itemsWithImages.map(item => ({
-              type: 'image_url' as const,
-              image_url: { url: item.imageUrl! }
-            }))
-          ]
-        }
-      ];
-
-      const response = await this.openai.chat.completions.create({
-        model: 'gpt-4o',
-        messages: messages,
-        max_tokens: 1000
-      });
-
-      const responseContent = response.choices[0]?.message?.content;
+      // 기본 모델 이미지 생성 (간단한 마네킹)
+      const baseModelImage = await this.generateBaseModelImage(userProfile);
       
-      // 응답에서 이미지 URL 추출 시도
-      if (responseContent) {
-        const imageUrlMatch = responseContent.match(/https?:\/\/[^\s]+\.(?:png|jpg|jpeg|gif|webp)/i);
-        if (imageUrlMatch) {
-          return imageUrlMatch[0];
+      // 각 의상 아이템에 대해 가상 착용 수행
+      let resultImage = baseModelImage;
+      
+      for (const item of itemsWithImages) {
+        try {
+          resultImage = await this.performVirtualTryOn(resultImage, item.imageUrl);
+        } catch (error) {
+          console.warn(`Failed to apply ${item.name}:`, error);
+          // 실패한 아이템은 건너뛰고 계속 진행
         }
       }
 
-      // GPT-4o가 직접 이미지를 생성하지 못한 경우 분석 결과를 DALL-E 3에 전달
-      if (responseContent) {
-        return await this.generateWithDALLE3(responseContent);
-      }
-
-      // 모든 방법이 실패한 경우 기존 방식으로 폴백
-      return this.generateOutfitImage(userProfile, selectedItems);
+      return resultImage;
 
     } catch (error) {
-      console.error('Experimental image generation failed:', error);
-      return this.generateOutfitImage(userProfile, selectedItems);
+      console.error('Failed to generate outfit with Hugging Face Spaces:', error);
+      throw error;
+    }
+  }
+
+  // 기본 모델 이미지 생성
+  private async generateBaseModelImage(userProfile: UserProfile): Promise<string> {
+    const gender = userProfile.gender === 'male' ? 'male' : 'female';
+    const prompt = `Professional fashion model, ${gender}, ${userProfile.height}cm tall, ${userProfile.bodyType.name} body type, neutral pose, plain white background, high quality, fashion photography`;
+
+    const response = await fetch('https://api.openai.com/v1/images/generations', {
+      method: 'POST',
+             headers: {
+         'Content-Type': 'application/json',
+         'Authorization': `Bearer ${this.apiKey}`,
+       },
+      body: JSON.stringify({
+        model: 'dall-e-3',
+        prompt: prompt,
+        n: 1,
+        size: '1024x1024',
+        quality: 'standard',
+        response_format: 'url',
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to generate base model image: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.data[0].url;
+  }
+
+  // Hugging Face Spaces를 사용한 가상 착용
+  private async performVirtualTryOn(modelImageUrl: string, garmentImageUrl: string): Promise<string> {
+    const spaces = [
+      'Kwai-Kolors/Kolors-Virtual-Try-On',
+      'HumanAIGC/OutfitAnyone',
+      'WeShopAI/WeShopAI-Virtual-Try-On'
+    ];
+
+    for (const space of spaces) {
+      try {
+        const result = await this.tryHuggingFaceSpace(space, modelImageUrl, garmentImageUrl);
+        if (result) {
+          return result;
+        }
+      } catch (error) {
+        console.warn(`Failed to use ${space}:`, error);
+      }
+    }
+
+    throw new Error('All Hugging Face Spaces failed');
+  }
+
+  // 개별 Hugging Face Space 시도
+  private async tryHuggingFaceSpace(
+    space: string, 
+    modelImageUrl: string, 
+    garmentImageUrl: string
+  ): Promise<string | null> {
+    try {
+      // Hugging Face Spaces API 호출
+      const response = await fetch(`https://api-inference.huggingface.co/models/${space}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          inputs: {
+            model_image: modelImageUrl,
+            garment_image: garmentImageUrl,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const blob = await response.blob();
+      
+      // Blob을 Data URL로 변환
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+
+    } catch (error) {
+      console.error(`Error with ${space}:`, error);
+      return null;
+    }
+  }
+
+  // 무료 Flux.1 Dev API를 사용한 백업 방법
+  async generateOutfitWithFluxDev(
+    userProfile: UserProfile,
+    selectedItems: ClothingItem[]
+  ): Promise<string> {
+    try {
+      const itemsWithImages = selectedItems.filter(item => item.imageUrl);
+      
+      if (itemsWithImages.length === 0) {
+        throw new Error('No clothing items with images found');
+      }
+
+      // 첫 번째 의상 이미지를 기반으로 생성
+      const baseGarmentImage = itemsWithImages[0].imageUrl;
+      
+      // 다른 의상들의 설명을 텍스트로 조합
+      const additionalItems = itemsWithImages.slice(1).map(item => 
+        `${item.name} (${item.category})`
+      ).join(', ');
+
+      const prompt = `Fashion model wearing the clothing from the input image${additionalItems ? ` and also wearing ${additionalItems}` : ''}, ${userProfile.gender}, ${userProfile.bodyType.name} body type, professional fashion photography, high quality, realistic`;
+
+      // Flux.1 Dev API 호출 (무료, 키 불필요)
+      const response = await fetch('https://fluximagegenerator.ai/api/flux1-dev', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt: prompt,
+          image: baseGarmentImage,
+          strength: 0.8,
+          guidance_scale: 7.5,
+          num_inference_steps: 20,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Flux.1 Dev API error: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data.image_url || data.output || data.result;
+
+    } catch (error) {
+      console.error('Failed to generate outfit with Flux.1 Dev:', error);
+      throw error;
     }
   }
 

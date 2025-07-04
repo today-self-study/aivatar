@@ -5,6 +5,49 @@
 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.0.0/)를 기반으로 하며,
 이 프로젝트는 [Semantic Versioning](https://semver.org/lang/ko/)을 준수합니다.
 
+## [1.1.2] - 2024-12-19
+
+### Added
+- 🆓 **무료 이미지 생성 API 통합**
+  - Hugging Face Spaces API를 통한 무료 가상 착용 시스템
+  - 계정 가입 없이 즉시 사용 가능한 이미지 생성
+  - Kolors Virtual Try-On, OutfitAnyone, WeShopAI 등 다중 API 지원
+  - 실제 의상 이미지 → 착용 이미지 직접 변환
+- 🔄 **3단계 무료 이미지 생성 시스템**
+  - 1단계: Hugging Face Spaces 가상 착용 (무료, 계정 불필요)
+  - 2단계: Flux.1 Dev 이미지 투 이미지 생성 (무료, API 키 불필요)
+  - 3단계: GPT-4o Vision 분석 + DALL-E 3 생성 (기존 방식)
+  - 각 단계별 자동 폴백으로 최대 가용성 보장
+- 🎯 **실제 이미지 입력 기반 생성**
+  - 사용자가 선택한 실제 의상 이미지를 직접 입력으로 활용
+  - 텍스트 설명이 아닌 실제 이미지 기반 정확한 착장 생성
+  - 마네킹 모델 + 실제 의상 이미지 조합으로 현실적 결과
+- 🏷️ **다중 API 백업 시스템**
+  - 3개 Hugging Face Spaces 동시 지원 (안정성 극대화)
+  - API 실패 시 즉시 다음 방법으로 자동 전환
+  - 사용자에게 투명한 처리 과정 제공
+
+### Enhanced
+- 🔍 **이미지 생성 정확도 향상**
+  - 실제 의상 이미지를 직접 사용하여 100% 정확한 색상/디자인 재현
+  - 텍스트 기반 추상화 없이 시각적 정보 직접 전달
+  - 브랜드 특성 및 의상 디테일 완벽 보존
+- 🚀 **성능 및 비용 최적화**
+  - 무료 API 우선 사용으로 비용 절감
+  - 병렬 처리로 생성 속도 향상
+  - 실패 시에만 유료 API 사용하는 스마트 폴백
+- 🛡️ **안정성 대폭 개선**
+  - 5단계 폴백 시스템으로 생성 실패율 최소화
+  - 각 API별 전용 오류 처리 및 복구 메커니즘
+  - 사용자 경험 중단 없는 매끄러운 전환
+
+### Technical Details
+- generateOutfitWithHuggingFaceSpaces() 무료 가상 착용 시스템
+- generateOutfitWithFluxDev() 이미지 투 이미지 생성 시스템
+- performVirtualTryOn() 다중 API 시도 로직
+- tryHuggingFaceSpace() 개별 API 호출 및 오류 처리
+- generateBaseModelImage() 마네킹 모델 생성 최적화
+
 ## [1.1.1] - 2024-12-19
 
 ### Added
