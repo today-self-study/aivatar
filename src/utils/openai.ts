@@ -484,6 +484,172 @@ The result should look like a professional product catalog photo focusing on the
     }
   }
 
+  // GPT-4o Vision을 활용한 이미지 분석 기반 착장 생성
+  async generateOutfitImageWithRealClothes(
+    userProfile: UserProfile,
+    selectedItems: ClothingItem[]
+  ): Promise<string> {
+    try {
+      const gender = userProfile.gender === 'male' ? 'male' : 'female';
+      const bodyType = userProfile.bodyType.name;
+
+      // 이미지가 있는 의상들만 필터링
+      const itemsWithImages = selectedItems.filter(item => item.imageUrl);
+      
+      if (itemsWithImages.length === 0) {
+        // 이미지가 없는 경우 기존 방식으로 폴백
+        return this.generateOutfitImage(userProfile, selectedItems);
+      }
+
+      // 각 의상 이미지를 GPT-4o Vision으로 분석하여 정확한 설명 생성
+      const detailedDescriptions = await Promise.all(
+        itemsWithImages.map(async (item) => {
+          try {
+            const response = await this.openai.chat.completions.create({
+              model: 'gpt-4o',
+              messages: [
+                {
+                  role: 'system',
+                  content: 'You are an expert fashion analyst. Analyze clothing items in images and provide extremely detailed, accurate descriptions focusing on colors, textures, patterns, cut, fit, and styling details that would be essential for recreating the exact same garment.'
+                },
+                {
+                  role: 'user',
+                  content: [
+                    {
+                      type: 'text',
+                      text: `Analyze this ${item.category} clothing item and provide a detailed description that captures:
+1. Exact colors and color combinations
+2. Fabric texture and material appearance
+3. Patterns, prints, or design elements
+4. Cut and silhouette details
+5. Fit characteristics (loose, fitted, oversized, etc.)
+6. Any distinctive styling features or brand characteristics
+7. How the garment drapes or falls
+
+Focus on visual details that would help recreate this exact item. Be specific about shades, textures, and proportions.`
+                    },
+                    {
+                      type: 'image_url',
+                      image_url: { url: item.imageUrl! }
+                    }
+                  ]
+                }
+              ],
+              max_tokens: 300
+            });
+
+            const analysis = response.choices[0]?.message?.content || '';
+            return {
+              category: item.category,
+              brand: item.brand,
+              name: item.name,
+              detailedDescription: analysis,
+              originalDescription: `${item.colors.join(' and ')} ${item.name} by ${item.brand}`
+            };
+          } catch (error) {
+            console.warn(`Failed to analyze image for ${item.name}:`, error);
+            // 분석 실패 시 기본 설명 사용
+            return {
+              category: item.category,
+              brand: item.brand,
+              name: item.name,
+              detailedDescription: `${item.colors.join(' and ')} ${item.name} by ${item.brand}`,
+              originalDescription: `${item.colors.join(' and ')} ${item.name} by ${item.brand}`
+            };
+          }
+        })
+      );
+
+      // 이미지가 없는 아이템들도 포함
+      const itemsWithoutImages = selectedItems.filter(item => !item.imageUrl);
+      const allItemDescriptions = [
+        ...detailedDescriptions,
+        ...itemsWithoutImages.map(item => ({
+          category: item.category,
+          brand: item.brand,
+          name: item.name,
+          detailedDescription: `${item.colors.join(' and ')} ${item.name} by ${item.brand}`,
+          originalDescription: `${item.colors.join(' and ')} ${item.name} by ${item.brand}`
+        }))
+      ];
+
+      // 향상된 프롬프트 생성
+      const enhancedPrompt = `
+Create a high-quality product showcase image of a simple, neutral ${gender} mannequin wearing the following outfit with EXACT ACCURACY:
+
+CLOTHING ITEMS TO DISPLAY (MUST MATCH PERFECTLY):
+${allItemDescriptions.map(item => 
+  `${item.category.toUpperCase()}: ${item.detailedDescription}`
+).join('\n\n')}
+
+CRITICAL REQUIREMENTS - VISUAL ACCURACY:
+- Each clothing item must match the analyzed description EXACTLY
+- Colors must be precisely as described (no variations or artistic interpretation)
+- Fabric textures and material appearance must be accurate
+- Patterns, prints, and design elements must be replicated exactly
+- Cut, fit, and silhouette must match the analysis
+- Brand styling characteristics must be preserved
+- All proportions and details must be accurate
+
+MANNEQUIN SPECIFICATIONS:
+- Use a simple, neutral, featureless ${gender} mannequin (NOT a real person)
+- Plain white or light gray mannequin body
+- No facial features, hair, or human characteristics
+- Proportional to ${userProfile.height}cm height
+- ${bodyType} body proportions
+- Standing in straight, neutral pose with arms at sides
+
+PHOTOGRAPHY SETUP:
+- Clean white studio background
+- Professional product photography lighting
+- Even, soft lighting that shows fabric textures and colors accurately
+- No shadows or dramatic lighting effects
+- Front-facing view showing complete outfit
+- Full body shot from head to toe
+- High resolution, crisp details on all clothing items
+- Color accuracy is paramount - lighting should not alter clothing colors
+
+STYLING REQUIREMENTS:
+- All clothing items should be properly fitted on the mannequin
+- Natural draping and positioning of garments as they would appear in real life
+- Each piece should be clearly visible and well-coordinated
+- Professional retail display presentation
+- Focus on showcasing the exact clothing items, not the mannequin
+
+FORBIDDEN ELEMENTS:
+- No human model or realistic human features
+- No text, logos, or watermarks in the image
+- No background elements or props
+- No dramatic poses or fashion styling
+- No modification of any clothing details from the descriptions
+- No artistic interpretation of colors or patterns
+
+The result should look like a professional product catalog photo focusing on the exact clothing items as analyzed, displayed on a simple mannequin with perfect color and detail accuracy.
+`;
+
+      // DALL-E 3로 이미지 생성
+      const response = await this.openai.images.generate({
+        model: 'dall-e-3',
+        prompt: enhancedPrompt,
+        size: '1024x1792',
+        quality: 'hd',
+        n: 1
+      });
+
+      const imageUrl = response.data?.[0]?.url;
+      if (!imageUrl) {
+        throw new Error('이미지 생성에 실패했습니다.');
+      }
+
+      return imageUrl;
+
+    } catch (error) {
+      console.error('Failed to generate outfit image with real clothes analysis:', error);
+      // 오류 발생 시 기존 방식으로 폴백
+      return this.generateOutfitImage(userProfile, selectedItems);
+    }
+  }
+
   async testConnection(): Promise<boolean> {
     try {
       const response = await this.openai.chat.completions.create({

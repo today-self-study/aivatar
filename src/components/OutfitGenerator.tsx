@@ -41,21 +41,21 @@ export default function OutfitGenerator({
     {
       id: 'items',
       title: '의류 아이템 분석',
-      description: '선택한 의류들의 스타일과 색상을 분석해요',
+      description: '선택한 의류들의 실제 이미지와 스타일을 분석해요',
       completed: false,
       current: false
     },
     {
       id: 'coordinate',
       title: '코디네이션 계산',
-      description: 'AI가 최적의 조합을 찾고 있어요',
+      description: 'AI가 실제 의상을 고려한 최적의 조합을 찾고 있어요',
       completed: false,
       current: false
     },
     {
       id: 'generate',
       title: '착장 이미지 생성',
-      description: '실제 착용 모습을 그려내고 있어요',
+      description: '실제 의상 이미지를 바탕으로 마네킹 착용 모습을 그려내고 있어요',
       completed: false,
       current: false
     }
@@ -98,10 +98,18 @@ export default function OutfitGenerator({
       setCurrentStep(3);
       setProgress(90);
       
-      const generatedImageUrl = await openaiUtils.generateOutfitImage(
-        userProfile,
-        selectedItems
-      );
+      // 이미지가 있는 아이템들을 확인하여 더 정확한 분석 수행
+      const itemsWithImages = selectedItems.filter(item => item.imageUrl);
+      
+      const generatedImageUrl = itemsWithImages.length > 0
+        ? await openaiUtils.generateOutfitImageWithRealClothes(
+            userProfile,
+            selectedItems
+          )
+        : await openaiUtils.generateOutfitImage(
+            userProfile,
+            selectedItems
+          );
 
       setProgress(100);
 
