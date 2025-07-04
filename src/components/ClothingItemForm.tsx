@@ -151,10 +151,10 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
         <div className="mb-4 p-3 bg-green-50 rounded-lg border border-green-200">
           <div className="flex items-center gap-2 text-green-700">
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="text-sm font-medium">완전 자동 처리</span>
+            <span className="text-sm font-medium">📸 스크린샷 기반 정확한 분석</span>
           </div>
           <p className="text-xs text-green-600 mt-1">
-            화면 공유나 탭 선택 없이 바로 분석됩니다 ✨
+            실제 화면 캡처 → AI 직접 분석 → 추측 없이 정확한 정보 추출 ✨
           </p>
         </div>
 
@@ -201,13 +201,13 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
           <div className="mt-4 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin"></div>
-              <span className="text-green-700 font-medium">완전 자동 AI 분석</span>
+              <span className="text-green-700 font-medium">📸 스크린샷 기반 AI 분석</span>
             </div>
             <div className="text-sm text-green-600 mb-2">
               {analysisStatus}
             </div>
             <div className="text-xs text-green-500">
-              ✨ 사용자 개입 없이 자동으로 처리됩니다
+              ✨ 화면 캡처 후 실제 표시된 정보만 추출합니다
             </div>
           </div>
         )}
@@ -262,7 +262,7 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
                     <h4 className="font-medium text-gray-700 mb-1 flex items-center gap-2">
                       💰 가격
                       <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                        AI 추정
+                        화면 추출
                       </span>
                     </h4>
                     <p className="text-gray-900 font-bold text-lg">₩{analysisResult.price.toLocaleString()}</p>
