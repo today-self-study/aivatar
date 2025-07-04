@@ -600,43 +600,27 @@ class VirtualTryOnGenerator implements VirtualTryOnGeneration {
   }
 }
 
-// AI 기반 의상 분석 함수 (스크린샷 기반)
+// AI 기반 의상 분석 함수 (스크린샷 기반 전용)
 export async function analyzeClothingFromUrl(url: string): Promise<SimpleAnalysisResult> {
   try {
-    console.log('AI 의상 URL 분석 시작:', url);
+    console.log('🔍 AI 의상 URL 분석 시작:', url);
     console.log('현재 AI 설정:', currentConfig);
     
-    // AI 설정이 활성화되어 있으면 스크린샷 기반 분석 우선 시도
+    // AI 설정이 활성화되어 있으면 스크린샷 기반 분석만 시도
     if (currentConfig.useAI && currentConfig.openaiApiKey) {
-      console.log('AI 분석 조건 만족 - 스크린샷 기반 분석 우선 시도');
+      console.log('✅ AI 분석 조건 만족 - 스크린샷 기반 분석만 시도');
       
-      // 1. 스크린샷 기반 AI 분석 시도 (최우선)
+      // 스크린샷 기반 AI 분석 시도 (유일한 AI 분석 방식)
       try {
         const screenshotResult = await analyzeClothingWithScreenshot(url);
         if (screenshotResult) {
-          console.log('✅ 스크린샷 기반 AI 분석 성공:', screenshotResult);
+          console.log('🎯 스크린샷 기반 AI 분석 성공:', screenshotResult);
           return screenshotResult;
+        } else {
+          console.log('⚠️ 스크린샷 기반 분석 실패 - 기본 분석으로 전환');
         }
       } catch (error) {
-        console.warn('❌ 스크린샷 분석 실패, 다른 방식 시도:', error);
-      }
-
-      // 2. 스크린샷 실패 시에만 기존 이미지 추출 방식으로 fallback
-      console.log('⚠️ 스크린샷 캡처 실패 - 기존 이미지 추출 방식으로 전환');
-      const generator = getVirtualTryOnGenerator();
-      const imageUrl = await generator.extractImageFromUrl(url);
-      
-      if (imageUrl) {
-        console.log('이미지 추출 성공:', imageUrl);
-        try {
-          const aiAnalysis = await analyzeClothingWithAI(imageUrl, url);
-          if (aiAnalysis) {
-            console.log('✅ 이미지 기반 AI 분석 성공:', aiAnalysis);
-            return aiAnalysis;
-          }
-        } catch (error) {
-          console.warn('❌ 이미지 기반 AI 분석 실패:', error);
-        }
+        console.warn('❌ 스크린샷 분석 오류 - 기본 분석으로 전환:', error);
       }
     } else {
       console.log('❌ AI 분석 조건 미충족:', {
@@ -645,8 +629,8 @@ export async function analyzeClothingFromUrl(url: string): Promise<SimpleAnalysi
       });
     }
 
-    // 모든 AI 분석이 실패했거나 사용하지 않는 경우 기본 분석
-    console.log('⚠️ 기본 분석으로 전환');
+    // 스크린샷 기반 AI 분석이 실패했거나 사용하지 않는 경우 기본 분석
+    console.log('📋 기본 분석으로 전환 (스크린샷 AI 분석 불가)');
     const generator = getVirtualTryOnGenerator();
     const imageUrl = await generator.extractImageFromUrl(url);
     
@@ -959,7 +943,7 @@ async function analyzeClothingWithScreenshot(url: string): Promise<SimpleAnalysi
       return null;
     }
 
-    console.log('GPT-4o Vision 스크린샷 분석 응답:', aiResponse);
+    console.log('📸 GPT-4o Vision 스크린샷 분석 응답:', aiResponse);
 
     // 거부 응답 감지
     const refusalPatterns = [
@@ -973,34 +957,34 @@ async function analyzeClothingWithScreenshot(url: string): Promise<SimpleAnalysi
     ];
 
     if (refusalPatterns.some(pattern => pattern.test(aiResponse))) {
-      console.log('GPT-4o Vision 분석 거부 응답 감지');
+      console.log('❌ GPT-4o Vision 분석 거부 응답 감지');
       return null;
     }
 
     // JSON 파싱
     const jsonMatch = aiResponse.match(/\{[\s\S]*?\}/);
     if (!jsonMatch) {
-      console.log('JSON 응답 파싱 실패');
+      console.log('❌ JSON 응답 파싱 실패');
       return null;
     }
 
     const analysisData = JSON.parse(jsonMatch[0]);
     
-    // 스크린샷 이미지를 상품 이미지로 사용 (별도 이미지 추출 없음)
+    // 스크린샷 이미지만 사용 (상품 이미지 추출 없음)
     const result_data = {
       name: analysisData.name && analysisData.name !== '상품명 확인 불가' ? analysisData.name : '스크린샷 분석 상품',
       category: analysisData.category || 'tops',
       brand: analysisData.brand && analysisData.brand !== '브랜드 확인 불가' ? analysisData.brand : undefined,
       price: typeof analysisData.price === 'number' ? analysisData.price : (parseInt(analysisData.price) || 0),
-      imageUrl: screenshotBase64, // 스크린샷 이미지를 상품 이미지로 사용
+      imageUrl: screenshotBase64, // 스크린샷 이미지만 사용
       originalUrl: url,
       colors: Array.isArray(analysisData.colors) ? analysisData.colors : ['기본색상'],
       material: analysisData.material || '',
       fit: analysisData.fit || '',
-      description: analysisData.description || '스크린샷에서 분석된 상품입니다.'
+      description: analysisData.description || '페이지 스크린샷에서 직접 분석된 상품입니다.'
     };
 
-    console.log('스크린샷 기반 순수 AI 분석 성공:', result_data);
+    console.log('🎯 스크린샷 전용 AI 분석 성공:', result_data);
     return result_data;
 
   } catch (error) {
