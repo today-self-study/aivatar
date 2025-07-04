@@ -1,4 +1,5 @@
 // OpenAI API 기반 의상 분석 유틸리티 (단순화 버전)
+import OpenAI from 'openai';
 
 // 간단한 의상 분석 결과
 export interface SimpleAnalysisResult {
@@ -29,7 +30,7 @@ function getOpenAI() {
     throw new Error('OpenAI API 키가 설정되지 않았습니다.');
   }
   
-  return new (window as any).OpenAI({
+  return new OpenAI({
     apiKey: currentConfig.openaiApiKey,
     dangerouslyAllowBrowser: true
   });

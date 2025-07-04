@@ -5,6 +5,23 @@
 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.0.0/)를 기반으로 하며,
 이 프로젝트는 [Semantic Versioning](https://semver.org/lang/ko/)을 준수합니다.
 
+## [2.0.9] - 2024-12-19
+
+### 🐛 버그 수정
+- **OpenAI SDK import 오류 해결**: `window.OpenAI is not a constructor` 오류 수정
+- **정상적인 OpenAI SDK 사용**: `import OpenAI from 'openai'`로 정상 import
+- **브라우저 호환성 개선**: `dangerouslyAllowBrowser: true` 설정으로 브라우저에서 사용 가능
+
+### 🔧 기술적 개선
+- **OpenAI 패키지 설치**: npm install openai로 공식 SDK 설치
+- **타입 안전성 향상**: 정상적인 TypeScript import 사용
+- **에러 처리 개선**: OpenAI 클라이언트 생성 실패 시 명확한 오류 메시지
+
+### 📊 성능 개선
+- **번들 크기 최적화**: 공식 SDK 사용으로 더 안정적인 번들링
+- **빌드 안정성**: TypeScript 컴파일 오류 해결
+- **런타임 안정성**: window 객체 의존성 제거
+
 ## [2.0.8] - 2024-12-19
 
 ### 🚀 대규모 리팩토링 및 단순화
