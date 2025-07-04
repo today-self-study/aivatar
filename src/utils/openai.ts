@@ -1,5 +1,3 @@
-import type { SimpleAnalysisResult } from '../types';
-
 // 고급 Virtual Try-On 이미지 생성 API 유틸리티
 export interface VirtualTryOnGeneration {
   generateVirtualTryOn(
@@ -9,6 +7,20 @@ export interface VirtualTryOnGeneration {
   ): Promise<string>;
   
   extractImageFromUrl(url: string): Promise<string | null>;
+}
+
+// 간단한 의상 분석 결과
+export interface SimpleAnalysisResult {
+  name: string;
+  category: string;
+  imageUrl?: string;
+  originalUrl?: string;
+  brand?: string;
+  price?: number;
+  colors?: string[];
+  material?: string;
+  fit?: string;
+  description?: string;
 }
 
 // API 설정 타입
@@ -588,17 +600,29 @@ class VirtualTryOnGenerator implements VirtualTryOnGeneration {
   }
 }
 
-// AI 기반 의상 분석 함수
+// AI 기반 의상 분석 함수 (스크린샷 기반)
 export async function analyzeClothingFromUrl(url: string): Promise<SimpleAnalysisResult> {
   try {
     console.log('AI 의상 URL 분석 시작:', url);
     console.log('현재 AI 설정:', currentConfig);
     
-    // AI 설정이 활성화되어 있으면 AI 분석 시도
+    // AI 설정이 활성화되어 있으면 스크린샷 기반 분석 시도
     if (currentConfig.useAI && currentConfig.openaiApiKey) {
-      console.log('AI 분석 조건 만족 - 이미지 추출 및 AI 분석 시작');
+      console.log('AI 분석 조건 만족 - 스크린샷 기반 분석 시작');
       
-      // 이미지 추출 후 AI 분석
+      // 1. 스크린샷 기반 AI 분석 시도 (우선순위)
+      try {
+        const screenshotResult = await analyzeClothingWithScreenshot(url);
+        if (screenshotResult) {
+          console.log('스크린샷 기반 AI 분석 성공:', screenshotResult);
+          return screenshotResult;
+        }
+      } catch (error) {
+        console.warn('스크린샷 분석 실패, 기존 이미지 추출 방식 시도:', error);
+      }
+
+      // 2. 기존 이미지 추출 방식으로 fallback
+      console.log('기존 이미지 추출 방식으로 전환');
       const generator = getVirtualTryOnGenerator();
       const imageUrl = await generator.extractImageFromUrl(url);
       
@@ -607,14 +631,12 @@ export async function analyzeClothingFromUrl(url: string): Promise<SimpleAnalysi
         try {
           const aiAnalysis = await analyzeClothingWithAI(imageUrl, url);
           if (aiAnalysis) {
-            console.log('AI 분석 성공:', aiAnalysis);
+            console.log('이미지 기반 AI 분석 성공:', aiAnalysis);
             return aiAnalysis;
           }
         } catch (error) {
-          console.warn('AI 분석 실패:', error);
+          console.warn('이미지 기반 AI 분석 실패:', error);
         }
-      } else {
-        console.log('이미지 추출 실패');
       }
     } else {
       console.log('AI 분석 조건 미충족:', {
@@ -636,6 +658,278 @@ export async function analyzeClothingFromUrl(url: string): Promise<SimpleAnalysi
   } catch (error) {
     console.error('의상 분석 실패:', error);
     return createFallbackAnalysis(url);
+  }
+}
+
+// 페이지 스크린샷을 찍어서 분석하는 함수
+async function capturePageScreenshot(url: string): Promise<string | null> {
+  try {
+    console.log('페이지 스크린샷 캡처 시작:', url);
+    
+    // 1. Screen Capture API 사용 (브라우저 직접 스크린샷)
+    if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+      try {
+        console.log('Screen Capture API를 사용하여 스크린샷 캡처 시도');
+        
+        // 사용자에게 화면 공유 요청
+        const stream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: false
+        });
+        
+        // 비디오 스트림에서 스크린샷 캡처
+        const video = document.createElement('video');
+        video.srcObject = stream;
+        video.play();
+        
+        return new Promise((resolve) => {
+          video.onloadedmetadata = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d')!;
+            ctx.drawImage(video, 0, 0);
+            
+            // 스트림 정리
+            stream.getTracks().forEach(track => track.stop());
+            
+            const base64 = canvas.toDataURL('image/png');
+            console.log('Screen Capture API 스크린샷 캡처 성공');
+            resolve(base64);
+          };
+        });
+      } catch (error) {
+        console.warn('Screen Capture API 실패:', error);
+      }
+    }
+    
+    // 2. 새 탭에서 페이지 열고 스크린샷 (폴백 방식)
+    try {
+      console.log('새 탭 방식으로 스크린샷 캡처 시도');
+      
+      // 새 탭에서 페이지 열기
+      const newTab = window.open(url, '_blank', 'width=1200,height=800');
+      
+      if (!newTab) {
+        console.warn('새 탭 열기 실패 (팝업 차단)');
+        return null;
+      }
+      
+      // 페이지 로딩 대기
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      // 사용자에게 스크린샷 요청
+      const userConfirm = confirm(`
+🔍 스크린샷 캡처를 위해 다음 단계를 진행해주세요:
+
+1. 새로 열린 탭에서 상품 페이지가 완전히 로드되었는지 확인
+2. 확인 버튼을 클릭하면 화면 공유 요청이 나타납니다
+3. 해당 탭을 선택하여 공유해주세요
+
+계속하시겠습니까?
+      `);
+      
+      if (!userConfirm) {
+        newTab.close();
+        return null;
+      }
+      
+      // Screen Capture API 재시도
+      if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+        const stream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: false
+        });
+        
+        const video = document.createElement('video');
+        video.srcObject = stream;
+        video.play();
+        
+        return new Promise((resolve) => {
+          video.onloadedmetadata = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d')!;
+            ctx.drawImage(video, 0, 0);
+            
+            // 스트림 정리
+            stream.getTracks().forEach(track => track.stop());
+            newTab.close();
+            
+            const base64 = canvas.toDataURL('image/png');
+            console.log('새 탭 방식 스크린샷 캡처 성공');
+            resolve(base64);
+          };
+        });
+      }
+      
+    } catch (error) {
+      console.warn('새 탭 방식 실패:', error);
+    }
+    
+    console.log('모든 스크린샷 캡처 방법 실패');
+    return null;
+    
+  } catch (error) {
+    console.error('스크린샷 캡처 실패:', error);
+    return null;
+  }
+}
+
+// 스크린샷 기반 AI 분석
+async function analyzeClothingWithScreenshot(url: string): Promise<SimpleAnalysisResult | null> {
+  try {
+    console.log('스크린샷 기반 분석 시작:', url);
+    
+    // 스크린샷 캡처 시도
+    const screenshotBase64 = await capturePageScreenshot(url);
+    
+    if (!screenshotBase64) {
+      console.log('스크린샷 캡처 실패');
+      return null;
+    }
+
+    // GPT-4o Vision으로 스크린샷 분석
+    if (!currentConfig.openaiApiKey) {
+      console.log('OpenAI API 키가 없습니다');
+      return null;
+    }
+
+    console.log('스크린샷 분석 시작');
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${currentConfig.openaiApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-2024-05-13',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a computer vision assistant specialized in fashion e-commerce analysis. You can analyze webpage screenshots to extract detailed product information.`
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: `🛍️ **이 쇼핑몰 페이지 스크린샷을 분석해서 의상 정보를 추출해주세요**
+
+이 이미지는 온라인 쇼핑몰 상품 페이지의 스크린샷입니다. 페이지에서 다음 정보를 정확히 찾아서 추출해주세요:
+
+📋 **추출할 정보:**
+1. **상품명**: 페이지에 표시된 정확한 상품명 (한국어)
+2. **브랜드**: 페이지에서 확인되는 브랜드명 (로고, 텍스트 등에서)
+3. **가격**: 페이지에 표시된 실제 판매 가격 (숫자만, 원화 기준)
+4. **카테고리**: tops, bottoms, outerwear, shoes, accessories 중 하나
+5. **색상**: 상품 이미지에서 보이는 주요 색상들
+6. **소재**: 상품 설명에서 언급된 소재 정보
+7. **핏/스타일**: 상품명이나 설명에서 언급된 핏이나 스타일
+
+⚠️ **중요**: 반드시 아래 JSON 형식으로만 응답하세요.
+
+\`\`\`json
+{
+  "name": "페이지에서 추출한 정확한 상품명",
+  "category": "적절한 카테고리",
+  "brand": "페이지에서 확인된 브랜드명",
+  "price": 실제판매가격숫자,
+  "colors": ["주요색상1", "색상2"],
+  "material": "소재 정보",
+  "fit": "핏/스타일 정보",
+  "description": "상품 설명 요약"
+}
+\`\`\`
+
+분석할 페이지 URL: ${url}`
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: screenshotBase64,
+                  detail: 'high'
+                }
+              }
+            ]
+          }
+        ],
+        max_tokens: 1000,
+        temperature: 0.1,
+        // 거부 응답 억제
+        logit_bias: {
+          "40": -100,  // "Sorry"
+          "14661": -100, // "죄송"
+          "9906": -100,  // "cannot"
+          "2309": -100,  // "can't"
+          "1961": -100,  // "unable"
+          "15236": -100  // "불가능"
+        }
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`OpenAI API 오류: ${response.status}`);
+    }
+
+    const result = await response.json();
+    const aiResponse = result.choices[0]?.message?.content;
+    
+    if (!aiResponse) {
+      return null;
+    }
+
+    console.log('GPT-4o Vision 응답:', aiResponse);
+
+    // 거부 응답 감지
+    const refusalPatterns = [
+      /죄송.*분석.*수 없습니다/i,
+      /sorry.*cannot.*analyze/i,
+      /unable.*to.*analyze/i,
+      /can't.*analyze/i,
+      /분석할 수 없습니다/i,
+      /제공할 수 없습니다/i
+    ];
+
+    if (refusalPatterns.some(pattern => pattern.test(aiResponse))) {
+      console.log('GPT-4o Vision 분석 거부 응답 감지');
+      return null;
+    }
+
+    // JSON 파싱
+    const jsonMatch = aiResponse.match(/\{[\s\S]*?\}/);
+    if (!jsonMatch) {
+      console.log('JSON 응답 파싱 실패');
+      return null;
+    }
+
+    const analysisData = JSON.parse(jsonMatch[0]);
+    
+    // 상품 이미지 URL도 추출
+    const generator = getVirtualTryOnGenerator();
+    const productImageUrl = await generator.extractImageFromUrl(url);
+    
+    const result_data = {
+      name: analysisData.name || '분석된 의상',
+      category: analysisData.category || 'tops',
+      brand: analysisData.brand || await extractBrandFromPageContent(url),
+      price: typeof analysisData.price === 'number' ? analysisData.price : parseInt(analysisData.price) || 0,
+      imageUrl: productImageUrl || undefined,
+      originalUrl: url,
+      colors: Array.isArray(analysisData.colors) ? analysisData.colors : ['기본색상'],
+      material: analysisData.material || '',
+      fit: analysisData.fit || '',
+      description: analysisData.description || ''
+    };
+
+    console.log('스크린샷 기반 AI 분석 성공:', result_data);
+    return result_data;
+
+  } catch (error) {
+    console.error('스크린샷 기반 AI 분석 실패:', error);
+    return null;
   }
 }
 
@@ -1490,151 +1784,4 @@ export function initializeSimpleGenerator() {
   virtualTryOnGenerator = new VirtualTryOnGenerator(currentConfig);
 }
 
-export { VirtualTryOnGenerator, ImageProcessor };
-
-// 페이지 스크린샷을 찍어서 분석하는 함수 (실험적 기능)
-async function capturePageScreenshot(url: string): Promise<string | null> {
-  try {
-    console.log('페이지 스크린샷 캡처 시도:', url);
-    
-    // 현재는 외부 API 의존성을 줄이기 위해 비활성화
-    // 추후 서버 사이드 렌더링이나 Puppeteer 등을 통해 구현 가능
-    console.log('스크린샷 기능은 현재 비활성화되어 있습니다');
-    return null;
-
-    // // 향후 구현 예시:
-    // // 1. 서버 사이드에서 Puppeteer 사용
-    // // 2. 브라우저 확장 프로그램 활용
-    // // 3. 전용 스크린샷 서비스 API 사용
-    
-  } catch (error) {
-    console.error('스크린샷 캡처 실패:', error);
-    return null;
-  }
-}
-
-// 스크린샷 기반 AI 분석 (현재 비활성화)
-async function analyzeClothingWithScreenshot(url: string): Promise<SimpleAnalysisResult | null> {
-  try {
-    console.log('스크린샷 기반 분석 시도:', url);
-    
-    // 스크린샷 캡처 시도
-    const screenshotBase64 = await capturePageScreenshot(url);
-    
-    if (!screenshotBase64) {
-      console.log('스크린샷 캡처 실패 또는 비활성화됨');
-      return null;
-    }
-
-    // GPT-4o Vision으로 스크린샷 분석
-    if (!currentConfig.openaiApiKey) {
-      console.log('OpenAI API 키가 없습니다');
-      return null;
-    }
-
-    console.log('스크린샷 분석 시작');
-
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${currentConfig.openaiApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-2024-05-13',
-        messages: [
-          {
-            role: 'system',
-            content: `You are a computer vision assistant specialized in fashion e-commerce analysis. You can analyze webpage screenshots to extract detailed product information.`
-          },
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: `🛍️ **이 쇼핑몰 페이지 스크린샷을 분석해서 의상 정보를 추출해주세요**
-
-이 이미지는 온라인 쇼핑몰 상품 페이지의 스크린샷입니다. 페이지에서 다음 정보를 정확히 찾아서 추출해주세요:
-
-📋 **추출할 정보:**
-1. **상품명**: 페이지에 표시된 정확한 상품명 (한국어)
-2. **브랜드**: 페이지에서 확인되는 브랜드명 (로고, 텍스트 등에서)
-3. **가격**: 페이지에 표시된 실제 판매 가격 (숫자만, 원화 기준)
-4. **카테고리**: tops, bottoms, outerwear, shoes, accessories 중 하나
-5. **색상**: 상품 이미지에서 보이는 주요 색상들
-6. **소재**: 상품 설명에서 언급된 소재 정보
-7. **핏/스타일**: 상품명이나 설명에서 언급된 핏이나 스타일
-
-⚠️ **중요**: 반드시 아래 JSON 형식으로만 응답하세요.
-
-\`\`\`json
-{
-  "name": "페이지에서 추출한 정확한 상품명",
-  "category": "적절한 카테고리",
-  "brand": "페이지에서 확인된 브랜드명",
-  "price": 실제판매가격숫자,
-  "colors": ["주요색상1", "색상2"],
-  "material": "소재 정보",
-  "fit": "핏/스타일 정보",
-  "description": "상품 설명 요약"
-}
-\`\`\`
-
-분석할 페이지 URL: ${url}`
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: screenshotBase64,
-                  detail: 'high'
-                }
-              }
-            ]
-          }
-        ],
-        max_tokens: 1000,
-        temperature: 0.1
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`OpenAI API 오류: ${response.status}`);
-    }
-
-    const result = await response.json();
-    const aiResponse = result.choices[0]?.message?.content;
-    
-    if (!aiResponse) {
-      return null;
-    }
-
-    // JSON 파싱
-    const jsonMatch = aiResponse.match(/\{[\s\S]*?\}/);
-    if (!jsonMatch) {
-      return null;
-    }
-
-    const analysisData = JSON.parse(jsonMatch[0]);
-    
-    // 상품 이미지 URL도 추출
-    const generator = getVirtualTryOnGenerator();
-    const productImageUrl = await generator.extractImageFromUrl(url);
-    
-    return {
-      name: analysisData.name || '분석된 의상',
-      category: analysisData.category || 'tops',
-      brand: analysisData.brand || 'Unknown',
-      price: typeof analysisData.price === 'number' ? analysisData.price : parseInt(analysisData.price) || 0,
-      imageUrl: productImageUrl || undefined,
-      originalUrl: url,
-      colors: Array.isArray(analysisData.colors) ? analysisData.colors : ['기본색상'],
-      material: analysisData.material || '',
-      fit: analysisData.fit || '',
-      description: analysisData.description || ''
-    };
-
-  } catch (error) {
-    console.error('스크린샷 기반 AI 분석 실패:', error);
-    return null;
-  }
-} 
+export { VirtualTryOnGenerator, ImageProcessor }; 
