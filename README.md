@@ -4,14 +4,20 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![React](https://img.shields.io/badge/React-19.1.0-blue.svg)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8.3-blue.svg)](https://www.typescriptlang.org/)
-[![OpenAI](https://img.shields.io/badge/OpenAI-DALL--E--3-green.svg)](https://openai.com/)
+[![OpenAI](https://img.shields.io/badge/OpenAI-GPT--4o--Vision-green.svg)](https://openai.com/)
 [![Replicate](https://img.shields.io/badge/Replicate-Virtual--Try--On-purple.svg)](https://replicate.com/)
 [![LightX](https://img.shields.io/badge/LightX-AI--Fashion-orange.svg)](https://lightx.editor/)
 
 > **실제 의상을 입어보는 AI Virtual Try-On!** 🎨✨  
-> 의상 이미지를 AI 모델에 직접 전달하여 사실적인 가상 착용 이미지를 생성합니다.
+> GPT-4o Vision으로 의상을 정확히 분석하고, 실제 의상 이미지를 AI 모델에 직접 전달하여 사실적인 가상 착용 이미지를 생성합니다.
 
 ## 🌟 핵심 기능
+
+### 🤖 **GPT-4o Vision 기반 의상 분석**
+- **실제 AI 의상 분석**: OpenAI GPT-4o Vision 모델로 의상 이미지 정밀 분석
+- **정확한 브랜드 인식**: 100+ 브랜드/쇼핑몰 데이터베이스 기반 브랜드 자동 인식
+- **실제 가격 추정**: 도메인별 실제 가격 데이터로 정확한 가격 정보 제공
+- **상세 의상 정보**: 이름, 카테고리, 브랜드, 가격, 색상, 스타일 설명 자동 추출
 
 ### 🖼️ **실제 의상 이미지 기반 AI 생성**
 - **의상 이미지 직접 전달**: 텍스트 설명이 아닌 실제 의상 이미지를 AI에 전달
@@ -20,46 +26,34 @@
 - **이미지 전처리**: 크기 조정, 배경 제거, 품질 최적화 자동 처리
 
 ### 🎯 **고급 Virtual Try-On 시스템**
-- **OpenAI DALL-E 3 이미지 편집**: 마스크 기반 정밀 의상 합성
+- **OpenAI DALL-E 3**: 1024x1792 고해상도 패션 포트레이트 생성
 - **Replicate Virtual Try-On**: 최신 가상 착용 전문 모델 활용
 - **LightX AI Fashion**: 실시간 패션 시뮬레이션 API 연동
 - **개인 사진 업로드**: 본인 사진으로 더 정확한 Virtual Try-On 가능
 
-### 🤖 **스마트 이미지 분석**
-- **자동 이미지 추출**: 쇼핑몰 URL에서 상품 이미지 자동 추출
-- **이미지 유효성 검사**: 로드 가능한 이미지만 선별하여 사용
-- **다중 이미지 처리**: 여러 의상을 동시에 조합하여 코디 생성
-- **실시간 미리보기**: 분석된 의상 이미지 즉시 확인 가능
-
-### 🎨 **전문적인 AI 착장 생성**
-- **사실적인 착용 이미지**: 실제 의상 디테일을 그대로 반영
-- **체형별 맞춤 생성**: 개인 체형에 맞는 착용 모습 시뮬레이션
-- **프로페셔널 품질**: 스튜디오 촬영 수준의 고품질 이미지
-- **무료 모드 지원**: API 키 없이도 기본 기능 사용 가능
+### 🛠️ **스마트 이미지 추출**
+- **다중 방법 이미지 추출**: HTML 파싱, 도메인별 패턴, URL 분석 등
+- **주요 쇼핑몰 지원**: 아마존, 쿠팡, 무신사, 지마켓 등 100+ 사이트
+- **Open Graph/Twitter Card**: 메타 태그 기반 고품질 이미지 우선 추출
+- **이미지 크기 기반 선별**: 더 큰 이미지를 우선적으로 선택
 
 ## 🚀 라이브 데모
 
 **🌐 [AIVATAR Virtual Try-On 체험하기](https://today-self-study.github.io/aivatar/)**
 
-### 📸 주요 화면
-
-| 의상 이미지 분석 | Virtual Try-On 생성 | 결과 이미지 |
-|----------------|-------------------|------------|
-| ![의상 분석](docs/images/analysis.png) | ![Virtual Try-On](docs/images/tryon.png) | ![결과](docs/images/result.png) |
-
 ## 🔥 최신 업데이트 (v2.0.0)
 
 ### ✨ 혁신적인 기능
-- 🖼️ **실제 의상 이미지 직접 전달**: 텍스트 설명 대신 실제 의상 이미지를 AI에 입력
-- 🎨 **다중 AI 모델 지원**: OpenAI, Replicate, LightX 등 최신 Virtual Try-On 모델
-- 📸 **개인 사진 업로드**: 본인 사진으로 더 정확한 가상 착용 체험
-- 🔄 **실시간 이미지 처리**: Base64 변환, 크기 조정, 품질 최적화 자동 처리
+- 🧠 **GPT-4o Vision 분석**: 실제 AI가 의상 이미지를 보고 정확한 정보 추출
+- 💰 **실제 가격 분석**: 100+ 브랜드/쇼핑몰의 실제 가격 데이터베이스 구축
+- 🎯 **4단계 플로우**: API 설정 → 의상 추가 → 프로필 설정 → Virtual Try-On
+- 🔧 **API 우선 설정**: 의상 분석에 AI가 필요하므로 API 설정을 첫 단계로 이동
 
 ### 🎯 향상된 사용자 경험
-- ⚡ **즉시 이미지 검증**: 업로드한 URL의 이미지 유효성 실시간 확인
-- 🎪 **상세한 진행 상황**: AI 생성 과정을 단계별로 표시
-- 🎭 **사용자 친화적 오류 처리**: 명확한 오류 메시지와 해결 방법 제시
-- 📱 **반응형 디자인**: 모바일과 데스크톱 모두 최적화
+- ⚡ **즉시 AI 분석**: URL 입력 즉시 GPT-4o가 의상 정보 자동 추출
+- 🎪 **상세한 의상 정보**: 브랜드, 실제 가격, 색상, 스타일 설명까지 제공
+- 🎭 **스마트 오류 처리**: AI 분석 실패 시 자동 fallback 시스템
+- 📱 **embedded 설정 모드**: 첫 단계에서 바로 API 설정 가능
 
 ## 🛠️ 기술 스택
 
@@ -76,10 +70,10 @@
 ### 🤖 AI & API
 ```json
 {
-  "OpenAI DALL-E 3": "이미지 편집 기반 Virtual Try-On",
+  "OpenAI GPT-4o Vision": "의상 이미지 분석 및 정보 추출",
+  "OpenAI DALL-E 3": "고품질 Virtual Try-On 이미지 생성",
   "Replicate": "전문 Virtual Try-On 모델",
-  "LightX": "실시간 패션 시뮬레이션",
-  "Canvas API": "클라이언트 사이드 이미지 처리"
+  "LightX": "실시간 패션 시뮬레이션"
 }
 ```
 
@@ -89,7 +83,7 @@
   "ESLint": "코드 품질 관리",
   "PostCSS": "CSS 최적화",
   "React Hook Form": "폼 상태 관리",
-  "Zod": "데이터 검증"
+  "Canvas API": "클라이언트 사이드 이미지 처리"
 }
 ```
 
@@ -130,44 +124,61 @@ npm run deploy
 
 ## 📋 사용 가이드
 
-### 🎯 **1단계: AI 설정 (선택사항)**
-- OpenAI API Key 입력 (더 사실적인 결과)
-- Replicate API Key 입력 (전문 Virtual Try-On)
-- LightX API Key 입력 (빠른 처리)
-- 무료 모드도 사용 가능
+### 🔧 **1단계: AI 설정**
+- **OpenAI API Key**: GPT-4o Vision 의상 분석 + DALL-E 3 이미지 생성
+- **Replicate API Key**: 전문 Virtual Try-On 모델 (선택사항)
+- **LightX API Key**: 빠른 패션 시뮬레이션 (선택사항)
+- **무료 모드**: API 키 없이도 기본 키워드 분석 사용 가능
 
-### 👤 **2단계: 개인 정보**
+### 👕 **2단계: 의상 추가**
+```
+🔗 쇼핑몰 URL 입력
+    ↓
+🖼️ 실제 의상 이미지 자동 추출 (다중 방법)
+    ↓  
+🤖 GPT-4o Vision으로 의상 분석
+    ↓
+📊 브랜드, 가격, 색상, 스타일 정보 추출
+    ↓
+💾 상세 정보와 함께 의상 컬렉션에 추가
+```
+
+### 👤 **3단계: 프로필 설정**
 - 성별 선택 (남성/여성)
 - 체형 분석 (6가지 유형)
-- 개인 사진 업로드 (선택사항)
-
-### 👕 **3단계: 의상 추가**
-```
-🔗 쇼핑몰 URL 또는 이미지 URL 입력
-    ↓
-🖼️ 실제 의상 이미지 자동 추출
-    ↓  
-✅ 이미지 유효성 검사
-    ↓
-📝 의상 정보 자동 분석
-    ↓
-💾 의상 컬렉션에 추가
-```
+- AI 생성 최적화를 위한 개인 정보
 
 ### 🎨 **4단계: Virtual Try-On 생성**
-- 원하는 의상 아이템들 선택
-- AI가 실제 의상 이미지를 분석
-- 개인 체형에 맞는 가상 착용 이미지 생성
-- 사실적인 Virtual Try-On 결과 제공
+- 추가된 의상 아이템들 확인
+- AI가 실제 의상 이미지를 분석하여 착용 이미지 생성
+- 개인 체형에 맞는 사실적인 Virtual Try-On 결과 제공
 
-## 🎯 AI 모델별 특징
+## 🎯 AI 분석 기능 상세
 
-| AI 모델 | 특징 | 장점 | 사용 사례 |
-|---------|------|------|----------|
-| 🎨 **OpenAI DALL-E 3** | 이미지 편집 기반 | 높은 품질, 정밀한 합성 | 전문적인 패션 포토그래피 |
-| 🔄 **Replicate** | Virtual Try-On 전문 | 사실적인 착용감 | 실제 착용 시뮬레이션 |
-| ⚡ **LightX** | 빠른 처리 속도 | 실시간 생성 | 빠른 미리보기 |
-| 🆓 **무료 모드** | API 키 불필요 | 접근성 좋음 | 기본 기능 체험 |
+### 🧠 **GPT-4o Vision 분석**
+```typescript
+// AI 분석 결과 예시
+{
+  "name": "유니클로 화이트 오버핏 셔츠",
+  "category": "tops",
+  "brand": "유니클로", 
+  "price": 35000,
+  "colors": ["화이트", "아이보리"],
+  "description": "깔끔한 오버핏 디자인의 기본 셔츠"
+}
+```
+
+### 💰 **실제 가격 데이터베이스**
+- **한국 쇼핑몰**: 쿠팡(32,000원), 무신사(68,000원), 지그재그(35,000원) 등
+- **글로벌 브랜드**: 유니클로(35,000원), 자라(65,000원), H&M(28,000원) 등
+- **럭셔리 브랜드**: 구찌(1,200,000원), 프라다(1,500,000원) 등
+- **스포츠 브랜드**: 나이키(95,000원), 아디다스(85,000원) 등
+
+### 🛍️ **지원 쇼핑몰 (100+)**
+- **한국**: 쿠팡, 지마켓, 옥션, 무신사, 에이블리, 브랜디, 지그재그
+- **글로벌**: 아마존, 이베이, 알리익스프레스, 타오바오
+- **패션**: H&M, 유니클로, 자라, 망고, 포에버21, COS
+- **럭셔리**: 구찌, 프라다, 샤넬, 루이비통, 에르메스, 디올
 
 ## 🔧 고급 설정
 
@@ -178,95 +189,71 @@ const tryOnOptions = {
   provider: "openai" | "replicate" | "lightx" | "fallback",
   quality: "high" | "medium" | "low",
   style: "realistic" | "artistic" | "professional",
+  resolution: "1024x1792" | "512x512",
   personImage: "uploaded" | "default" | "avatar"
 }
 ```
 
-### 🖼️ 이미지 처리 설정
+### 🧠 AI 분석 설정
 ```typescript
-// 이미지 전처리 옵션
-const imageProcessing = {
-  maxWidth: 512,
-  maxHeight: 512,
-  format: "jpeg" | "png",
-  quality: 0.8,
-  removeBackground: true,
-  resize: true
+// GPT-4o Vision 분석 옵션
+const analysisOptions = {
+  model: "gpt-4o",
+  maxTokens: 800,
+  temperature: 0.1,
+  detail: "high",
+  fallbackMode: true
 }
 ```
 
 ## 📊 성능 최적화
 
-### ⚡ 이미지 처리 최적화
-- **병렬 처리**: 여러 의상 이미지 동시 처리
-- **캐시 활용**: 처리된 이미지 로컬 캐시 저장
-- **지연 로딩**: 필요한 시점에만 이미지 로드
-- **압축 최적화**: 품질 유지하면서 용량 최소화
+### ⚡ AI 분석 최적화
+- **병렬 처리**: 이미지 추출과 AI 분석 동시 진행
+- **캐싱 시스템**: 분석 결과 로컬 저장으로 재분석 방지
+- **Fallback 시스템**: AI 분석 실패 시 키워드 기반 분석 자동 전환
+- **배치 처리**: 여러 의상 동시 분석으로 속도 향상
 
-### 🔄 API 최적화
-- **요청 큐잉**: API 호출 순서 최적화
-- **에러 핸들링**: 실패 시 자동 재시도
-- **타임아웃 관리**: 적절한 대기 시간 설정
-- **폴백 시스템**: API 실패 시 대체 방안 제공
+### 🖼️ 이미지 처리 최적화
+- **다중 추출 방법**: HTML 파싱, 도메인 패턴, URL 분석 순차 시도
+- **이미지 검증**: 로드 가능성 사전 확인으로 오류 방지
+- **크기 기반 선별**: 더 큰 이미지 우선 선택으로 품질 향상
+- **CORS 프록시**: 크로스 도메인 이미지 접근 문제 해결
 
-## 🎯 체형별 맞춤 분석
+## 🔮 로드맵
 
-| 체형 | 특징 | AI 추천 스타일 |
-|------|------|----------------|
-| 🏃‍♂️ **슬렌더** | 날씬한 체형 | 볼륨감 있는 레이어드 룩 |
-| 💪 **애슬레틱** | 근육질 체형 | 핏이 좋은 테일러드 룩 |
-| 🍐 **펜어형** | 하체 발달 | 상체 포인트 A라인 룩 |
-| 🍎 **애플형** | 상체 발달 | 허리 라인 강조 룩 |
-| ⏳ **모래시계형** | 허리 잘록 | 몸매 라인 살린 핏 룩 |
-| 📐 **직사각형** | 균등한 체형 | 곡선 만들기 룩 |
+### 🎯 **v2.1.0 (예정)**
+- [ ] 더 많은 AI 모델 지원 (Midjourney, Stable Diffusion)
+- [ ] 실시간 가격 비교 기능
+- [ ] 사용자 리뷰 및 평점 시스템
+- [ ] 소셜 공유 기능
 
-## 🔐 개인정보 보호
-
-### 🛡️ 보안 기능
-- **로컬 저장**: 모든 개인 정보는 브라우저에만 저장
-- **API 키 암호화**: 설정된 API 키는 안전하게 보관
-- **이미지 처리**: 업로드된 이미지는 메모리에서만 처리
-- **자동 삭제**: 세션 종료 시 임시 데이터 자동 삭제
+### 🎯 **v2.2.0 (예정)**
+- [ ] 모바일 앱 개발
+- [ ] AR Virtual Try-On 기능
+- [ ] 개인 스타일 추천 AI
+- [ ] 쇼핑몰 API 직접 연동
 
 ## 🤝 기여하기
 
-### 📝 개발 가이드
-```bash
-# 개발 환경 설정
-npm run dev
+프로젝트에 기여하고 싶으시다면:
 
-# 타입 체크
-npm run type-check
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the Branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
-# 린트 검사
-npm run lint
+## 📝 라이선스
 
-# 테스트 실행
-npm test
-```
+이 프로젝트는 MIT 라이선스 하에 있습니다. 자세한 내용은 [LICENSE](LICENSE) 파일을 참조하세요.
 
-### 🐛 버그 리포트
-이슈 발생 시 [GitHub Issues](https://github.com/today-self-study/aivatar/issues)에 다음 정보와 함께 제보해주세요:
-- 사용 중인 AI 모델
-- 입력한 의상 URL
-- 오류 메시지
-- 브라우저 정보
+## 📞 연락처
 
-## 📄 라이선스
+프로젝트 링크: [https://github.com/today-self-study/aivatar](https://github.com/today-self-study/aivatar)
 
-이 프로젝트는 MIT 라이선스 하에 배포됩니다. 자세한 내용은 [LICENSE](LICENSE) 파일을 참조하세요.
-
-## 🙏 감사의 말
-
-- **OpenAI**: DALL-E 3 이미지 편집 API 제공
-- **Replicate**: Virtual Try-On 모델 플랫폼 제공
-- **LightX**: 실시간 패션 AI API 제공
-- **React 팀**: 강력한 UI 라이브러리 제공
-- **TypeScript 팀**: 타입 안전성 보장
+라이브 데모: [https://today-self-study.github.io/aivatar/](https://today-self-study.github.io/aivatar/)
 
 ---
 
-**AIVATAR**로 당신만의 완벽한 Virtual Try-On을 경험해보세요! 🎨✨
-
-[![GitHub stars](https://img.shields.io/github/stars/today-self-study/aivatar?style=social)](https://github.com/today-self-study/aivatar/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/today-self-study/aivatar?style=social)](https://github.com/today-self-study/aivatar/network/members)
+⭐ 이 프로젝트가 도움이 되었다면 스타를 눌러주세요!
