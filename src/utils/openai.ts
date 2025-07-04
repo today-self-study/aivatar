@@ -666,7 +666,7 @@ async function capturePageScreenshot(url: string): Promise<string | null> {
   try {
     console.log('페이지 스크린샷 캡처 시작:', url);
     
-    // 1. iframe + html2canvas 방식 (현재 화면에서 처리)
+    // iframe + html2canvas 방식 (현재 화면에서 처리)
     try {
       console.log('iframe + html2canvas 방식으로 스크린샷 캡처 시도');
       const screenshotBase64 = await captureWithIframe(url);
@@ -678,44 +678,8 @@ async function capturePageScreenshot(url: string): Promise<string | null> {
       console.warn('iframe 방식 실패:', error);
     }
     
-    // 2. Screen Capture API 사용 (브라우저 직접 스크린샷) - 폴백
-    if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
-      try {
-        console.log('Screen Capture API를 사용하여 스크린샷 캡처 시도');
-        
-        // 사용자에게 화면 공유 요청
-        const stream = await navigator.mediaDevices.getDisplayMedia({
-          video: true,
-          audio: false
-        });
-        
-        // 비디오 스트림에서 스크린샷 캡처
-        const video = document.createElement('video');
-        video.srcObject = stream;
-        video.play();
-        
-        return new Promise((resolve) => {
-          video.onloadedmetadata = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const ctx = canvas.getContext('2d')!;
-            ctx.drawImage(video, 0, 0);
-            
-            // 스트림 정리
-            stream.getTracks().forEach(track => track.stop());
-            
-            const base64 = canvas.toDataURL('image/png');
-            console.log('Screen Capture API 스크린샷 캡처 성공');
-            resolve(base64);
-          };
-        });
-      } catch (error) {
-        console.warn('Screen Capture API 실패:', error);
-      }
-    }
-    
-    console.log('모든 스크린샷 캡처 방법 실패');
+    // 모든 방법 실패 시 null 반환
+    console.log('스크린샷 캡처 실패 - 기존 이미지 추출 방식으로 전환');
     return null;
     
   } catch (error) {
@@ -743,10 +707,17 @@ async function captureWithIframe(url: string): Promise<string | null> {
       
       // 다양한 프록시 서버 시도
       const proxyUrls = [
+        // 1. 직접 접근 시도 (동일 도메인이거나 CORS 허용된 경우)
+        url,
+        // 2. 다양한 프록시 서버들
         `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
         `https://cors-anywhere.herokuapp.com/${url}`,
         `https://thingproxy.freeboard.io/fetch/${url}`,
-        url // 직접 접근 시도 (동일 도메인이거나 CORS 허용된 경우)
+        `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+        `https://yacdn.org/proxy/${url}`,
+        // 3. 백업 프록시들
+        `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+        `https://jsonp.afeld.me/?url=${encodeURIComponent(url)}`
       ];
       
       let currentProxyIndex = 0;
@@ -780,23 +751,25 @@ async function captureWithIframe(url: string): Promise<string | null> {
               return;
             }
             
-            // 페이지 로딩 대기
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            // 페이지 로딩 대기 (단축)
+            await new Promise(resolve => setTimeout(resolve, 1000));
             
             // iframe 내용 캡처
             const canvas = await (window as any).html2canvas(iframeDoc.body, {
               allowTaint: true,
               useCORS: true,
-              scale: 0.8,
+              scale: 0.6, // 더 빠른 처리를 위해 스케일 감소
               width: 1200,
               height: 800,
               scrollX: 0,
               scrollY: 0,
-              backgroundColor: '#ffffff'
+              backgroundColor: '#ffffff',
+              logging: false, // 로깅 비활성화로 성능 향상
+              removeContainer: true
             });
             
             // 캔버스를 Base64로 변환
-            const base64 = canvas.toDataURL('image/png', 0.8);
+            const base64 = canvas.toDataURL('image/png', 0.7); // 품질 약간 감소로 속도 향상
             
             // iframe 제거
             document.body.removeChild(iframe);
@@ -817,14 +790,14 @@ async function captureWithIframe(url: string): Promise<string | null> {
           tryNextProxy();
         };
         
-        // 타임아웃 설정 (각 프록시당 5초)
+        // 타임아웃 설정 (각 프록시당 3초로 단축)
         setTimeout(() => {
           if (document.body.contains(iframe)) {
             console.warn(`프록시 ${currentProxyIndex + 1} 타임아웃`);
             currentProxyIndex++;
             tryNextProxy();
           }
-        }, 5000);
+        }, 3000);
         
         iframe.src = proxyUrl;
       };

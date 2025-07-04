@@ -32,10 +32,10 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
       
       // 단계별 상태 업데이트
       setAnalysisStatus('📄 페이지 정보 가져오는 중...')
-      await new Promise(resolve => setTimeout(resolve, 500))
+      await new Promise(resolve => setTimeout(resolve, 300))
       
-      setAnalysisStatus('🖼️ 현재 화면에서 이미지 캡처 중...')
-      await new Promise(resolve => setTimeout(resolve, 500))
+      setAnalysisStatus('🖼️ 자동으로 이미지 캡처 중...')
+      await new Promise(resolve => setTimeout(resolve, 300))
       
       setAnalysisStatus('🤖 AI가 의상을 분석하는 중...')
       const result = await analyzeClothingFromUrl(url)
@@ -148,13 +148,13 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
         </div>
 
         {/* 현재 화면 처리 방식 안내 */}
-        <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-          <div className="flex items-center gap-2 text-blue-700">
-            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-            <span className="text-sm font-medium">현재 화면에서 즉시 처리</span>
+        <div className="mb-4 p-3 bg-green-50 rounded-lg border border-green-200">
+          <div className="flex items-center gap-2 text-green-700">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span className="text-sm font-medium">완전 자동 처리</span>
           </div>
-          <p className="text-xs text-blue-600 mt-1">
-            별도 탭이나 화면 공유 없이 현재 화면에서 바로 분석됩니다
+          <p className="text-xs text-green-600 mt-1">
+            화면 공유나 탭 선택 없이 바로 분석됩니다 ✨
           </p>
         </div>
 
@@ -198,16 +198,16 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
 
         {/* 분석 중 상태 표시 */}
         {isAnalyzing && (
-          <div className="mt-4 p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-200">
+          <div className="mt-4 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200">
             <div className="flex items-center gap-3 mb-3">
-              <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
-              <span className="text-purple-700 font-medium">AI 분석 진행 중</span>
+              <div className="w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin"></div>
+              <span className="text-green-700 font-medium">완전 자동 AI 분석</span>
             </div>
-            <div className="text-sm text-purple-600 mb-2">
+            <div className="text-sm text-green-600 mb-2">
               {analysisStatus}
             </div>
-            <div className="text-xs text-purple-500">
-              💡 현재 화면에서 자동으로 처리되고 있습니다
+            <div className="text-xs text-green-500">
+              ✨ 사용자 개입 없이 자동으로 처리됩니다
             </div>
           </div>
         )}
