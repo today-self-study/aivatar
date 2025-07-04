@@ -65,21 +65,20 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
     setError(null);
 
     try {
-      const generator = getSimpleGenerator();
-      const result = await analyzeClothingFromUrl(watchedUrl, generator);
+      const result = await analyzeClothingFromUrl(watchedUrl);
       
-      if (result.success && result.data) {
+      if (result) {
         setPreviewItem({
-          name: result.data.name,
-          category: result.data.category as ClothingCategoryType,
-          brand: result.data.brand,
-          price: result.data.price,
-          imageUrl: result.data.imageUrl,
+          name: result.name,
+          category: result.category as ClothingCategoryType,
+          brand: result.brand,
+          price: result.price,
+          imageUrl: result.imageUrl,
           originalUrl: watchedUrl
         });
         toast.success('의상 정보가 분석되었습니다!');
       } else {
-        setError(result.error || '의상 정보를 분석할 수 없습니다.');
+        setError('의상 정보를 분석할 수 없습니다.');
       }
     } catch (err) {
       console.error('Analysis error:', err);
@@ -100,7 +99,11 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
       brand: previewItem.brand || '',
       price: previewItem.price || 0,
       imageUrl: previewItem.imageUrl || '',
-      url: previewItem.originalUrl,
+      originalUrl: previewItem.originalUrl || '',
+      description: '',
+      colors: [],
+      sizes: [],
+      tags: [],
       createdAt: new Date().toISOString()
     };
 
@@ -118,7 +121,11 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
       brand: data.brand || '',
       price: data.price || 0,
       imageUrl: data.imageUrl || '',
-      url: data.url,
+      originalUrl: data.url || '',
+      description: '',
+      colors: [],
+      sizes: [],
+      tags: [],
       createdAt: new Date().toISOString()
     };
 

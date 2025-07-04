@@ -81,39 +81,239 @@ class VirtualTryOnGenerator implements VirtualTryOnGeneration {
 
   async extractImageFromUrl(url: string): Promise<string | null> {
     try {
+      console.log('이미지 추출 시작:', url);
+      
       // 직접 이미지 URL인 경우
-      if (url.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+      if (url.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i)) {
+        console.log('직접 이미지 URL 감지');
         return url;
       }
 
-      // 쇼핑몰 페이지에서 이미지 추출
-      const response = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`);
-      const html = await response.text();
+      // 다양한 방법으로 이미지 추출 시도
+      let imageUrl = null;
       
-      // 메타 태그에서 이미지 추출
-      const ogImageMatch = html.match(/<meta[^>]*property="og:image"[^>]*content="([^"]*)"[^>]*>/i);
-      if (ogImageMatch) {
-        return ogImageMatch[1];
+      // 1. CORS 프록시를 통한 HTML 파싱
+      try {
+        const response = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`);
+        if (response.ok) {
+          const html = await response.text();
+          imageUrl = this.extractImageFromHtml(html, url);
+          if (imageUrl) {
+            console.log('HTML 파싱으로 이미지 추출 성공:', imageUrl);
+            return imageUrl;
+          }
+        }
+      } catch (error) {
+        console.warn('HTML 파싱 실패:', error);
       }
 
-      // 첫 번째 큰 이미지 찾기
-      const imgMatches = html.match(/<img[^>]*src="([^"]*)"[^>]*>/gi);
-      if (imgMatches) {
-        for (const match of imgMatches) {
-          const srcMatch = match.match(/src="([^"]*)"/i);
-          if (srcMatch) {
-            const imgUrl = srcMatch[1];
-            if (imgUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
-              return imgUrl.startsWith('http') ? imgUrl : new URL(imgUrl, url).href;
+      // 2. 다른 CORS 프록시 시도
+      try {
+        const response = await fetch(`https://cors-anywhere.herokuapp.com/${url}`, {
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+          }
+        });
+        if (response.ok) {
+          const html = await response.text();
+          imageUrl = this.extractImageFromHtml(html, url);
+          if (imageUrl) {
+            console.log('대체 프록시로 이미지 추출 성공:', imageUrl);
+            return imageUrl;
+          }
+        }
+      } catch (error) {
+        console.warn('대체 프록시 실패:', error);
+      }
+
+      // 3. 도메인별 특수 처리
+      imageUrl = this.extractImageByDomain(url);
+      if (imageUrl) {
+        console.log('도메인별 처리로 이미지 추출 성공:', imageUrl);
+        return imageUrl;
+      }
+
+      // 4. 기본 이미지 패턴 추출
+      imageUrl = this.extractImageFromUrlPattern(url);
+      if (imageUrl) {
+        console.log('URL 패턴으로 이미지 추출 성공:', imageUrl);
+        return imageUrl;
+      }
+
+      console.log('이미지 추출 실패 - 모든 방법 시도함');
+      return null;
+    } catch (error) {
+      console.error('이미지 추출 실패:', error);
+      return null;
+    }
+  }
+
+  private extractImageFromHtml(html: string, baseUrl: string): string | null {
+    try {
+      // 1. Open Graph 이미지
+      const ogImageMatch = html.match(/<meta[^>]*property="og:image"[^>]*content="([^"]*)"[^>]*>/i);
+      if (ogImageMatch) {
+        return this.resolveImageUrl(ogImageMatch[1], baseUrl);
+      }
+
+      // 2. Twitter Card 이미지
+      const twitterImageMatch = html.match(/<meta[^>]*name="twitter:image"[^>]*content="([^"]*)"[^>]*>/i);
+      if (twitterImageMatch) {
+        return this.resolveImageUrl(twitterImageMatch[1], baseUrl);
+      }
+
+      // 3. 상품 이미지 (일반적인 클래스명/ID로 찾기)
+      const productImagePatterns = [
+        /<img[^>]*class="[^"]*product[^"]*"[^>]*src="([^"]*)"[^>]*>/gi,
+        /<img[^>]*id="[^"]*product[^"]*"[^>]*src="([^"]*)"[^>]*>/gi,
+        /<img[^>]*class="[^"]*main[^"]*"[^>]*src="([^"]*)"[^>]*>/gi,
+        /<img[^>]*class="[^"]*hero[^"]*"[^>]*src="([^"]*)"[^>]*>/gi
+      ];
+
+      for (const pattern of productImagePatterns) {
+        const matches = html.match(pattern);
+        if (matches) {
+          for (const match of matches) {
+            const srcMatch = match.match(/src="([^"]*)"/i);
+            if (srcMatch) {
+              const imgUrl = this.resolveImageUrl(srcMatch[1], baseUrl);
+              if (imgUrl && this.isValidImageUrl(imgUrl)) {
+                return imgUrl;
+              }
             }
           }
         }
       }
 
+      // 4. 모든 이미지 태그에서 가장 큰 이미지 찾기
+      const imgMatches = html.match(/<img[^>]*src="([^"]*)"[^>]*>/gi);
+      if (imgMatches) {
+        const imageUrls = [];
+        for (const match of imgMatches) {
+          const srcMatch = match.match(/src="([^"]*)"/i);
+          if (srcMatch) {
+            const imgUrl = this.resolveImageUrl(srcMatch[1], baseUrl);
+            if (imgUrl && this.isValidImageUrl(imgUrl)) {
+              // 이미지 크기 힌트 확인
+              const sizeMatch = match.match(/(?:width|height)="?(\d+)"?/i);
+              const size = sizeMatch ? parseInt(sizeMatch[1]) : 0;
+              imageUrls.push({ url: imgUrl, size });
+            }
+          }
+        }
+        
+        // 크기 순으로 정렬하여 가장 큰 이미지 반환
+        if (imageUrls.length > 0) {
+          imageUrls.sort((a, b) => b.size - a.size);
+          return imageUrls[0].url;
+        }
+      }
+
       return null;
     } catch (error) {
-      console.error('이미지 추출 실패:', error);
+      console.error('HTML 파싱 실패:', error);
       return null;
+    }
+  }
+
+  private extractImageByDomain(url: string): string | null {
+    try {
+      const domain = new URL(url).hostname.toLowerCase();
+      
+      // 도메인별 특수 처리
+      if (domain.includes('amazon')) {
+        // Amazon 상품 이미지 패턴
+        const asinMatch = url.match(/\/dp\/([A-Z0-9]{10})/);
+        if (asinMatch) {
+          return `https://images-na.ssl-images-amazon.com/images/I/${asinMatch[1]}._SL1500_.jpg`;
+        }
+      }
+      
+      if (domain.includes('coupang')) {
+        // 쿠팡 상품 이미지 패턴
+        const productMatch = url.match(/products\/(\d+)/);
+        if (productMatch) {
+          return `https://thumbnail7.coupangcdn.com/thumbnails/remote/492x492ex/image/retail/images/product/${productMatch[1]}/main.jpg`;
+        }
+      }
+
+      if (domain.includes('musinsa')) {
+        // 무신사 상품 이미지 패턴
+        const productMatch = url.match(/goods\/(\d+)/);
+        if (productMatch) {
+          return `https://image.msscdn.net/images/goods_img/${productMatch[1]}/main.jpg`;
+        }
+      }
+
+      return null;
+    } catch (error) {
+      console.error('도메인별 이미지 추출 실패:', error);
+      return null;
+    }
+  }
+
+  private extractImageFromUrlPattern(url: string): string | null {
+    try {
+      // URL에서 이미지 ID나 패턴 추출
+      const patterns = [
+        /\/(\d+)\.jpg$/i,
+        /\/(\d+)\.png$/i,
+        /image[=\/]([^&\?]+)/i,
+        /img[=\/]([^&\?]+)/i,
+        /photo[=\/]([^&\?]+)/i
+      ];
+
+      for (const pattern of patterns) {
+        const match = url.match(pattern);
+        if (match) {
+          // 추출된 패턴으로 이미지 URL 구성
+          const baseUrl = new URL(url).origin;
+          return `${baseUrl}/images/${match[1]}`;
+        }
+      }
+
+      return null;
+    } catch (error) {
+      console.error('URL 패턴 추출 실패:', error);
+      return null;
+    }
+  }
+
+  private resolveImageUrl(imageUrl: string, baseUrl: string): string {
+    try {
+      if (imageUrl.startsWith('http')) {
+        return imageUrl;
+      }
+      if (imageUrl.startsWith('//')) {
+        return `https:${imageUrl}`;
+      }
+      if (imageUrl.startsWith('/')) {
+        const base = new URL(baseUrl);
+        return `${base.protocol}//${base.hostname}${imageUrl}`;
+      }
+      return new URL(imageUrl, baseUrl).href;
+    } catch (error) {
+      console.error('이미지 URL 해석 실패:', error);
+      return imageUrl;
+    }
+  }
+
+  private isValidImageUrl(url: string): boolean {
+    try {
+      const parsedUrl = new URL(url);
+      const pathname = parsedUrl.pathname.toLowerCase();
+      
+      // 이미지 확장자 확인
+      const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'];
+      const hasImageExtension = imageExtensions.some(ext => pathname.endsWith(ext));
+      
+      // 이미지 관련 경로 확인
+      const imageKeywords = ['image', 'img', 'photo', 'picture', 'thumb', 'thumbnail'];
+      const hasImageKeyword = imageKeywords.some(keyword => pathname.includes(keyword));
+      
+      return hasImageExtension || hasImageKeyword;
+    } catch (error) {
+      return false;
     }
   }
 
@@ -688,40 +888,196 @@ class VirtualTryOnGenerator implements VirtualTryOnGeneration {
   }
 }
 
-// 간단한 의상 분석 함수 (기존 유지)
+// 향상된 의상 분석 함수
 export async function analyzeClothingFromUrl(url: string): Promise<SimpleAnalysisResult> {
   try {
+    console.log('의상 URL 분석 시작:', url);
+    
     const generator = new VirtualTryOnGenerator({ provider: 'fallback' });
     const imageUrl = await generator.extractImageFromUrl(url);
     
-    const domain = new URL(url).hostname;
-    let category = 'tops';
+    // URL 기반 분석
+    const urlAnalysis = analyzeUrlKeywords(url);
     
-    if (url.includes('pants') || url.includes('jean') || url.includes('trouser')) {
-      category = 'bottoms';
-    } else if (url.includes('jacket') || url.includes('coat') || url.includes('outer')) {
-      category = 'outerwear';
-    } else if (url.includes('shoes') || url.includes('sneaker') || url.includes('boot')) {
-      category = 'shoes';
-    } else if (url.includes('bag') || url.includes('accessory') || url.includes('watch')) {
-      category = 'accessories';
-    }
+    // 도메인 기반 브랜드 추출
+    const domain = new URL(url).hostname;
+    const brandName = extractBrandFromDomain(domain);
+    
+    // 가격 추정 (도메인별 평균 가격대)
+    const estimatedPrice = estimatePriceByDomain(domain);
+    
+    // 상품명 생성
+    const productName = generateProductName(urlAnalysis, brandName);
+    
+    console.log('분석 결과:', {
+      name: productName,
+      category: urlAnalysis.category,
+      brand: brandName,
+      price: estimatedPrice,
+      imageUrl: imageUrl
+    });
     
     return {
-      name: `${domain}에서 가져온 상품`,
-      category: category as any,
+      name: productName,
+      category: urlAnalysis.category,
       imageUrl: imageUrl || undefined,
-      brand: domain.split('.')[0],
-      price: 50000
+      brand: brandName,
+      price: estimatedPrice
     };
     
   } catch (error) {
     console.error('의상 분석 실패:', error);
+    
+    // 기본 분석 결과 반환
+    const fallbackAnalysis = createFallbackAnalysis(url);
+    return fallbackAnalysis;
+  }
+}
+
+// URL 키워드 분석
+function analyzeUrlKeywords(url: string): { category: string; keywords: string[] } {
+  const urlLower = url.toLowerCase();
+  const keywords: string[] = [];
+  
+  // 카테고리별 키워드 매칭
+  const categoryKeywords = {
+    'tops': ['shirt', 'tshirt', 't-shirt', 'top', 'blouse', 'sweater', 'hoodie', 'cardigan', 'tank'],
+    'bottoms': ['pants', 'jean', 'jeans', 'trouser', 'short', 'skirt', 'legging', 'bottom'],
+    'outerwear': ['jacket', 'coat', 'outer', 'blazer', 'vest', 'cardigan', 'parka', 'windbreaker'],
+    'shoes': ['shoes', 'sneaker', 'boot', 'sandal', 'heel', 'flat', 'loafer', 'oxford'],
+    'accessories': ['bag', 'accessory', 'watch', 'jewelry', 'belt', 'hat', 'cap', 'scarf', 'glove']
+  };
+  
+  let detectedCategory = 'tops'; // 기본값
+  let maxMatches = 0;
+  
+  for (const [category, keywordList] of Object.entries(categoryKeywords)) {
+    const matches = keywordList.filter(keyword => urlLower.includes(keyword));
+    if (matches.length > maxMatches) {
+      maxMatches = matches.length;
+      detectedCategory = category;
+      keywords.push(...matches);
+    }
+  }
+  
+  return { category: detectedCategory, keywords };
+}
+
+// 도메인에서 브랜드명 추출
+function extractBrandFromDomain(domain: string): string {
+  const domainParts = domain.split('.');
+  const brandPart = domainParts[0];
+  
+  // 알려진 쇼핑몰 도메인 처리
+  const knownSites: { [key: string]: string } = {
+    'amazon': 'Amazon',
+    'coupang': 'Coupang',
+    'gmarket': 'G마켓',
+    'auction': '옥션',
+    'wemakeprice': '위메프',
+    'tmon': '티몬',
+    'ssg': 'SSG',
+    'lotte': '롯데온',
+    'elevenst': '11번가',
+    'interpark': '인터파크',
+    'yes24': 'YES24',
+    'musinsa': '무신사',
+    'ably': '에이블리',
+    'brandi': '브랜디',
+    'zigzag': '지그재그',
+    'styleshare': '스타일쉐어',
+    'wconcept': 'W컨셉',
+    'hm': 'H&M',
+    'uniqlo': '유니클로',
+    'zara': 'ZARA',
+    'nike': 'NIKE',
+    'adidas': 'ADIDAS'
+  };
+  
+  const lowerBrand = brandPart.toLowerCase();
+  if (knownSites[lowerBrand]) {
+    return knownSites[lowerBrand];
+  }
+  
+  // 첫 글자 대문자로 변환
+  return brandPart.charAt(0).toUpperCase() + brandPart.slice(1);
+}
+
+// 도메인별 가격 추정
+function estimatePriceByDomain(domain: string): number {
+  const domainLower = domain.toLowerCase();
+  
+  // 도메인별 평균 가격대
+  const priceRanges: { [key: string]: number } = {
+    'amazon': 35000,
+    'coupang': 25000,
+    'gmarket': 30000,
+    'auction': 28000,
+    'wemakeprice': 32000,
+    'tmon': 30000,
+    'ssg': 45000,
+    'lotte': 40000,
+    'elevenst': 35000,
+    'musinsa': 55000,
+    'ably': 25000,
+    'brandi': 35000,
+    'zigzag': 28000,
+    'styleshare': 45000,
+    'wconcept': 65000,
+    'hm': 25000,
+    'uniqlo': 35000,
+    'zara': 55000,
+    'nike': 85000,
+    'adidas': 80000
+  };
+  
+  for (const [site, price] of Object.entries(priceRanges)) {
+    if (domainLower.includes(site)) {
+      return price;
+    }
+  }
+  
+  return 40000; // 기본 추정 가격
+}
+
+// 상품명 생성
+function generateProductName(analysis: { category: string; keywords: string[] }, brandName: string): string {
+  const categoryNames: { [key: string]: string } = {
+    'tops': '상의',
+    'bottoms': '하의',
+    'outerwear': '아우터',
+    'shoes': '신발',
+    'accessories': '액세서리'
+  };
+  
+  const categoryName = categoryNames[analysis.category] || '의상';
+  
+  if (analysis.keywords.length > 0) {
+    const mainKeyword = analysis.keywords[0];
+    return `${brandName} ${mainKeyword} ${categoryName}`;
+  }
+  
+  return `${brandName} ${categoryName}`;
+}
+
+// 기본 분석 결과 생성
+function createFallbackAnalysis(url: string): SimpleAnalysisResult {
+  try {
+    const domain = new URL(url).hostname;
+    const brandName = extractBrandFromDomain(domain);
+    
     return {
-      name: '분석된 상품',
+      name: `${brandName} 의상`,
+      category: 'tops',
+      brand: brandName,
+      price: 40000
+    };
+  } catch {
+    return {
+      name: '분석된 의상',
       category: 'tops',
       brand: '브랜드',
-      price: 50000
+      price: 40000
     };
   }
 }
