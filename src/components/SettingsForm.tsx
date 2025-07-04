@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { updateAIConfig, type AIApiConfig } from '../utils/openai';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, ExternalLink, Sparkles } from 'lucide-react';
 import { cn } from '../utils';
 
 interface SettingsFormProps {
@@ -12,12 +12,13 @@ interface SettingsFormProps {
 
 const SettingsForm: React.FC<SettingsFormProps> = ({ onClose, onConfigSave, embedded = false }) => {
   const [apiConfig, setApiConfig] = useLocalStorage<AIApiConfig>('ai-api-config', {
-    provider: 'fallback'
+    useAI: false
   });
   
   const [formData, setFormData] = useState<AIApiConfig>(apiConfig);
   const [isLoading, setIsLoading] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
+  const [showApiKey, setShowApiKey] = useState(false);
 
   useEffect(() => {
     setFormData(apiConfig);
@@ -28,15 +29,25 @@ const SettingsForm: React.FC<SettingsFormProps> = ({ onClose, onConfigSave, embe
     setIsLoading(true);
     
     try {
-      // 설정 저장
-      setApiConfig(formData);
-      updateAIConfig(formData);
+      // OpenAI API 키가 있으면 AI 사용 활성화
+      const configToSave = {
+        ...formData,
+        useAI: !!(formData.openaiApiKey && formData.openaiApiKey.trim())
+      };
       
-      setTestResult('설정이 저장되었습니다! 이제 고품질 AI 이미지 생성을 사용할 수 있습니다.');
+      // 설정 저장
+      setApiConfig(configToSave);
+      updateAIConfig(configToSave);
+      
+      if (configToSave.useAI) {
+        setTestResult('✅ OpenAI API가 설정되었습니다! 이제 GPT-4o Vision 의상 분석과 DALL-E 3 이미지 생성을 사용할 수 있습니다.');
+      } else {
+        setTestResult('⚠️ 설정이 저장되었습니다. API 키를 입력하면 더 정확한 AI 분석을 사용할 수 있습니다.');
+      }
       
       // onConfigSave 콜백 호출
       if (onConfigSave) {
-        onConfigSave(formData);
+        onConfigSave(configToSave);
       }
       
       // embedded 모드가 아닐 때만 자동으로 닫기
@@ -48,7 +59,7 @@ const SettingsForm: React.FC<SettingsFormProps> = ({ onClose, onConfigSave, embe
       
     } catch (error) {
       console.error('설정 저장 실패:', error);
-      setTestResult('설정 저장에 실패했습니다. 다시 시도해주세요.');
+      setTestResult('❌ 설정 저장에 실패했습니다. 다시 시도해주세요.');
     } finally {
       setIsLoading(false);
     }
@@ -61,53 +72,32 @@ const SettingsForm: React.FC<SettingsFormProps> = ({ onClose, onConfigSave, embe
     }));
   };
 
-  const testApiKey = async (provider: 'openai' | 'replicate' | 'lightx') => {
+  const testOpenAIKey = async () => {
+    if (!formData.openaiApiKey) {
+      setTestResult('❌ OpenAI API 키를 먼저 입력해주세요.');
+      return;
+    }
+
     setIsLoading(true);
     setTestResult(null);
     
     try {
-      const testConfig = { ...formData, provider };
-      updateAIConfig(testConfig);
+      const response = await fetch('https://api.openai.com/v1/models', {
+        headers: {
+          'Authorization': `Bearer ${formData.openaiApiKey}`,
+        },
+      });
       
-      // 간단한 테스트 요청
-      if (provider === 'openai' && formData.openaiApiKey) {
-        const response = await fetch('https://api.openai.com/v1/models', {
-          headers: {
-            'Authorization': `Bearer ${formData.openaiApiKey}`,
-          },
-        });
-        
-        if (response.ok) {
-          setTestResult('✅ OpenAI API 키가 유효합니다!');
-        } else {
-          setTestResult('❌ OpenAI API 키가 유효하지 않습니다.');
-        }
-      } else if (provider === 'replicate' && formData.replicateApiKey) {
-        const response = await fetch('https://api.replicate.com/v1/models', {
-          headers: {
-            'Authorization': `Token ${formData.replicateApiKey}`,
-          },
-        });
-        
-        if (response.ok) {
-          setTestResult('✅ Replicate API 키가 유효합니다!');
-        } else {
-          setTestResult('❌ Replicate API 키가 유효하지 않습니다.');
-        }
-      } else if (provider === 'lightx' && formData.lightxApiKey) {
-        // LightX API 테스트는 실제 요청 없이 형식만 확인
-        if (formData.lightxApiKey.length > 10) {
-          setTestResult('✅ LightX API 키 형식이 올바릅니다!');
-        } else {
-          setTestResult('❌ LightX API 키 형식이 올바르지 않습니다.');
-        }
+      if (response.ok) {
+        setTestResult('✅ OpenAI API 키가 유효합니다! GPT-4o Vision과 DALL-E 3를 사용할 수 있습니다.');
       } else {
-        setTestResult('❌ API 키를 먼저 입력해주세요.');
+        const errorData = await response.json().catch(() => ({}));
+        setTestResult(`❌ OpenAI API 키가 유효하지 않습니다. (${response.status}: ${errorData.error?.message || 'Unknown error'})`);
       }
       
     } catch (error) {
       console.error('API 키 테스트 실패:', error);
-      setTestResult('❌ API 키 테스트 중 오류가 발생했습니다.');
+      setTestResult('❌ API 키 테스트 중 오류가 발생했습니다. 네트워크 연결을 확인해주세요.');
     } finally {
       setIsLoading(false);
     }
@@ -115,159 +105,104 @@ const SettingsForm: React.FC<SettingsFormProps> = ({ onClose, onConfigSave, embe
 
   const formContent = (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {/* AI 제공자 선택 */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          AI 이미지 생성 제공자
-        </label>
-        <select
-          value={formData.provider}
-          onChange={(e) => handleInputChange('provider', e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="fallback">기본 (무료, 제한적)</option>
-          <option value="openai">OpenAI DALL-E 3 (고품질)</option>
-          <option value="replicate">Replicate (Virtual Try-On)</option>
-          <option value="lightx">LightX (가상 착용)</option>
-        </select>
-        <p className="text-sm text-gray-500 mt-1">
-          고품질 AI 이미지 생성을 위해서는 API 키가 필요합니다.
+      {/* 헤더 */}
+      <div className="text-center">
+        <div className="flex items-center justify-center mb-2">
+          <Sparkles className="w-6 h-6 text-blue-500 mr-2" />
+          <h2 className="text-xl font-bold text-gray-800">OpenAI API 설정</h2>
+        </div>
+        <p className="text-sm text-gray-600">
+          GPT-4o Vision 의상 분석과 DALL-E 3 이미지 생성을 위한 API 키를 설정하세요
         </p>
       </div>
 
-      {/* OpenAI API 키 */}
-      <div className="border rounded-lg p-4 bg-gray-50">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-lg font-semibold text-gray-800">OpenAI DALL-E 3</h3>
-          <span className="text-sm text-green-600 font-medium">추천</span>
+      {/* OpenAI API 키 설정 */}
+      <div className="border-2 border-blue-100 rounded-lg p-6 bg-gradient-to-br from-blue-50 to-indigo-50">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-800 flex items-center">
+            <img 
+              src="https://openai.com/favicon.ico" 
+              alt="OpenAI" 
+              className="w-5 h-5 mr-2"
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+            />
+            OpenAI API
+          </h3>
+          <span className="text-sm bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">
+            권장
+          </span>
         </div>
-        <div className="space-y-3">
+
+        <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
               API 키
             </label>
-            <div className="flex gap-2">
+            <div className="relative">
               <input
-                type="password"
+                type={showApiKey ? "text" : "password"}
                 value={formData.openaiApiKey || ''}
                 onChange={(e) => handleInputChange('openaiApiKey', e.target.value)}
-                placeholder="sk-..."
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="sk-proj-..."
+                className="w-full px-3 py-3 pr-20 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
               <button
                 type="button"
-                onClick={() => testApiKey('openai')}
+                onClick={() => setShowApiKey(!showApiKey)}
+                className="absolute right-12 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+              <button
+                type="button"
+                onClick={testOpenAIKey}
                 disabled={isLoading || !formData.openaiApiKey}
-                className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:bg-gray-300"
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 disabled:bg-gray-300"
               >
                 테스트
               </button>
             </div>
           </div>
-          <div className="text-sm text-gray-600">
-            <p>• 최고 품질의 패션 이미지 생성</p>
-            <p>• 1024x1792 고해상도 지원</p>
-            <p>• 자연스러운 착용감 표현</p>
-            <p>• 비용: 이미지당 약 $0.08</p>
+
+          {/* 기능 설명 */}
+          <div className="bg-white rounded-lg p-4 border border-gray-200">
+            <h4 className="font-medium text-gray-800 mb-2">포함된 기능:</h4>
+            <div className="space-y-2 text-sm text-gray-600">
+              <div className="flex items-center">
+                <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                <span><strong>GPT-4o Vision:</strong> 의상 이미지 정밀 분석 (브랜드, 가격, 색상, 스타일)</span>
+              </div>
+              <div className="flex items-center">
+                <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                <span><strong>DALL-E 3:</strong> 1024x1792 고해상도 Virtual Try-On 이미지 생성</span>
+              </div>
+              <div className="flex items-center">
+                <span className="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
+                <span><strong>자동 분석:</strong> URL에서 의상 정보 자동 추출</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 비용 정보 */}
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+            <h4 className="font-medium text-yellow-800 mb-1">💰 예상 비용</h4>
+            <div className="text-sm text-yellow-700 space-y-1">
+              <p>• 의상 분석 (GPT-4o Vision): ~$0.01/분석</p>
+              <p>• 이미지 생성 (DALL-E 3): ~$0.08/이미지</p>
+              <p>• 월 10회 사용 시 약 $1 정도</p>
+            </div>
+          </div>
+
+          {/* API 키 발급 링크 */}
+          <div className="text-center">
             <a 
               href="https://platform.openai.com/api-keys" 
               target="_blank" 
               rel="noopener noreferrer"
-              className="text-blue-500 hover:underline"
+              className="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
             >
-              → API 키 발급받기
-            </a>
-          </div>
-        </div>
-      </div>
-
-      {/* Replicate API 키 */}
-      <div className="border rounded-lg p-4 bg-gray-50">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-lg font-semibold text-gray-800">Replicate</h3>
-          <span className="text-sm text-purple-600 font-medium">Virtual Try-On</span>
-        </div>
-        <div className="space-y-3">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              API 키
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="password"
-                value={formData.replicateApiKey || ''}
-                onChange={(e) => handleInputChange('replicateApiKey', e.target.value)}
-                placeholder="r8_..."
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <button
-                type="button"
-                onClick={() => testApiKey('replicate')}
-                disabled={isLoading || !formData.replicateApiKey}
-                className="px-4 py-2 bg-purple-500 text-white rounded-md hover:bg-purple-600 disabled:bg-gray-300"
-              >
-                테스트
-              </button>
-            </div>
-          </div>
-          <div className="text-sm text-gray-600">
-            <p>• 최신 Virtual Try-On 모델 사용</p>
-            <p>• 실제 착용감 시뮬레이션</p>
-            <p>• OutfitAnyone 등 최신 모델 지원</p>
-            <p>• 비용: 사용량에 따라 변동</p>
-            <a 
-              href="https://replicate.com/account/api-tokens" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-blue-500 hover:underline"
-            >
-              → API 키 발급받기
-            </a>
-          </div>
-        </div>
-      </div>
-
-      {/* LightX API 키 */}
-      <div className="border rounded-lg p-4 bg-gray-50">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-lg font-semibold text-gray-800">LightX</h3>
-          <span className="text-sm text-orange-600 font-medium">가상 착용</span>
-        </div>
-        <div className="space-y-3">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              API 키
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="password"
-                value={formData.lightxApiKey || ''}
-                onChange={(e) => handleInputChange('lightxApiKey', e.target.value)}
-                placeholder="lightx_..."
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <button
-                type="button"
-                onClick={() => testApiKey('lightx')}
-                disabled={isLoading || !formData.lightxApiKey}
-                className="px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 disabled:bg-gray-300"
-              >
-                테스트
-              </button>
-            </div>
-          </div>
-          <div className="text-sm text-gray-600">
-            <p>• 빠른 의상 변경 API</p>
-            <p>• 실시간 미리보기 지원</p>
-            <p>• 다양한 스타일 적용</p>
-            <p>• 비용: 무료 크레딧 포함</p>
-            <a 
-              href="https://www.lightxeditor.com/api" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-blue-500 hover:underline"
-            >
-              → API 키 발급받기
+              <ExternalLink className="w-4 h-4 mr-2" />
+              OpenAI API 키 발급받기
             </a>
           </div>
         </div>
@@ -276,20 +211,22 @@ const SettingsForm: React.FC<SettingsFormProps> = ({ onClose, onConfigSave, embe
       {/* 테스트 결과 */}
       {testResult && (
         <div className={cn(
-          "p-4 rounded-lg",
-          testResult.includes('✅') ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"
+          "p-4 rounded-lg border",
+          testResult.includes('✅') ? 'bg-green-50 border-green-200 text-green-800' :
+          testResult.includes('⚠️') ? 'bg-yellow-50 border-yellow-200 text-yellow-800' :
+          'bg-red-50 border-red-200 text-red-800'
         )}>
-          {testResult}
+          <p className="text-sm">{testResult}</p>
         </div>
       )}
 
-      {/* 저장 버튼 */}
-      <div className="flex justify-end space-x-4">
+      {/* 버튼 */}
+      <div className="flex gap-3">
         {!embedded && (
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-gray-600 hover:text-gray-800"
+            className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
           >
             취소
           </button>
@@ -297,32 +234,34 @@ const SettingsForm: React.FC<SettingsFormProps> = ({ onClose, onConfigSave, embe
         <button
           type="submit"
           disabled={isLoading}
-          className="px-6 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-300"
+          className={cn(
+            "px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:bg-gray-300",
+            embedded ? "w-full" : "flex-1"
+          )}
         >
           {isLoading ? '저장 중...' : '설정 저장'}
         </button>
       </div>
+
+      {/* 무료 모드 안내 */}
+      <div className="text-center p-4 bg-gray-50 rounded-lg">
+        <p className="text-sm text-gray-600">
+          💡 API 키 없이도 기본 키워드 분석과 콜라주 생성을 사용할 수 있습니다
+        </p>
+      </div>
     </form>
   );
 
-  // embedded 모드일 때는 모달 래퍼 없이 폼만 반환
   if (embedded) {
-    return formContent;
+    return <div className="space-y-4">{formContent}</div>;
   }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-800">AI 설정</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 text-2xl"
-          >
-            ×
-          </button>
+      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="p-6">
+          {formContent}
         </div>
-        {formContent}
       </div>
     </div>
   );

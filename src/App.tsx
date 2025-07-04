@@ -30,7 +30,7 @@ function App() {
   const [showAIPrompt, setShowAIPrompt] = useState(false)
   
   // AI 설정 상태
-  const [aiConfig, setAiConfig] = useLocalStorage<AIApiConfig>('ai-api-config', { provider: 'fallback' })
+  const [aiConfig, setAiConfig] = useLocalStorage<AIApiConfig>('ai-api-config', { useAI: false })
 
   // 로컬 스토리지에서 프로필 정보 로드
   const [profileData] = useLocalStorage<{ gender?: string; bodyType?: string }>('user-profile', {})
@@ -95,7 +95,7 @@ function App() {
   }
 
   // 단계 진행 체크
-  const hasAPIKey = aiConfig.openaiApiKey || aiConfig.replicateApiKey || aiConfig.lightxApiKey
+  const hasAPIKey = aiConfig.openaiApiKey && aiConfig.useAI
   const canProceedToAddClothes = hasAPIKey
   const canProceedToProfile = clothingItems.length > 0
   const canProceedToGenerate = selectedGender && selectedBodyType
