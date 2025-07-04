@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Toaster, toast } from 'react-hot-toast'
-import { Plus, Sparkles, Shirt, User, Check, Wand2 } from 'lucide-react'
+import { Plus, Sparkles, Shirt } from 'lucide-react'
 import { cn } from './utils'
 import { useLocalStorage } from './hooks/useLocalStorage'
 import { VersionInfo } from './components/VersionInfo'
@@ -20,112 +20,64 @@ import type {
 type AppStep = 'add-clothes' | 'profile' | 'generate'
 
 function App() {
+  // 상태 관리
   const [currentStep, setCurrentStep] = useState<AppStep>('add-clothes')
+  const [clothingItems, setClothingItems] = useLocalStorage<ClothingItem[]>('clothing-items', [])
+  const [selectedGender, setSelectedGender] = useState<Gender | null>(null)
+  const [selectedBodyType, setSelectedBodyType] = useState<BodyType | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
 
-  // 간단한 프로필 (성별, 체형만)
-  const [selectedGender, setSelectedGender] = useLocalStorage<Gender | null>('aivatar-selected-gender', null)
-  const [selectedBodyType, setSelectedBodyType] = useLocalStorage<BodyType | null>('aivatar-selected-body-type', null)
-  const [clothingItems, setClothingItems] = useLocalStorage<ClothingItem[]>('aivatar-clothing-items', [])
-  const [selectedItems, setSelectedItems] = useLocalStorage<ClothingItem[]>('aivatar-selected-items', [])
-  const [generatedOutfits, setGeneratedOutfits] = useLocalStorage<OutfitGeneration[]>('aivatar-generated-outfits', [])
+  // 로컬 스토리지에서 프로필 정보 로드
+  const [profileData] = useLocalStorage<{ gender?: string; bodyType?: string }>('user-profile', {})
 
-  // 무료 API 초기화
+  // 초기화 함수
   React.useEffect(() => {
     initializeSimpleGenerator()
-  }, [])
-
-  const handleClothingItemAdd = (item: ClothingItem) => {
-    try {
-      setIsLoading(true)
-      const newItems = [...clothingItems, item]
-      setClothingItems(newItems)
-      toast.success('의상이 추가되었습니다!')
-    } catch (error) {
-      console.error('Failed to add clothing item:', error)
-      toast.error('의상 추가에 실패했습니다')
-    } finally {
-      setIsLoading(false)
+    
+    // 저장된 프로필 데이터가 있으면 로드
+    if (profileData?.gender) {
+      setSelectedGender(profileData.gender as Gender)
     }
+    if (profileData?.bodyType) {
+      setSelectedBodyType(profileData.bodyType as BodyType)
+    }
+  }, [profileData])
+
+  // 의상 아이템 추가
+  const handleAddClothingItem = (item: ClothingItem) => {
+    setClothingItems([...clothingItems, item])
+    toast.success('의상이 추가되었습니다!')
   }
 
-  const handleItemSelect = (item: ClothingItem) => {
-    const isSelected = selectedItems.find(i => i.id === item.id)
-    if (isSelected) {
-      setSelectedItems(selectedItems.filter(i => i.id !== item.id))
-    } else {
-      setSelectedItems([...selectedItems, item])
-    }
+  // 의상 아이템 삭제
+  const handleDeleteClothingItem = (index: number) => {
+    const newItems = clothingItems.filter((_, i) => i !== index)
+    setClothingItems(newItems)
+    toast.success('의상이 삭제되었습니다!')
   }
 
+  // 성별 선택
   const handleGenderSelect = (gender: Gender) => {
     setSelectedGender(gender)
   }
 
-  const handleBodyTypeSelect = (bodyType: BodyType) => {
-    setSelectedBodyType(bodyType)
+  // 체형 선택
+  const handleBodyTypeSelect = (bodyType: string) => {
+    setSelectedBodyType(bodyType as unknown as BodyType)
   }
 
-  const handleOutfitGenerate = async (outfit: OutfitGeneration) => {
-    setGeneratedOutfits([outfit, ...generatedOutfits])
-    toast.success('멋진 코디가 완성되었습니다!')
-  }
-
-  const handleReset = () => {
-    setCurrentStep('add-clothes')
-    setSelectedGender(null)
-    setSelectedBodyType(null)
-    setSelectedItems([])
-    toast.success('처음부터 다시 시작합니다')
-  }
-
+  // 프로필 완료
   const handleProfileComplete = (gender: string, bodyType: string) => {
     setSelectedGender(gender as Gender)
-    setSelectedBodyType(bodyType as BodyType)
+    setSelectedBodyType(bodyType as unknown as BodyType)
     setCurrentStep('generate')
+    toast.success('프로필이 설정되었습니다!')
   }
 
-  const getStepInfo = () => {
-    switch (currentStep) {
-      case 'add-clothes':
-        return { title: '의상 추가', description: '코디에 사용할 의상들을 추가해보세요', progress: 33 }
-      case 'profile':
-        return { title: '간단한 정보', description: '성별과 체형을 선택해주세요', progress: 66 }
-      case 'generate':
-        return { title: 'AI 코디 생성', description: 'AI가 완벽한 코디를 만들어드려요', progress: 100 }
-      default:
-        return { title: '', description: '', progress: 0 }
-    }
-  }
-
-  const stepInfo = getStepInfo()
-  const canGoToProfile = clothingItems.length > 0
-  const canGenerate = selectedGender && selectedBodyType && selectedItems.length > 0
-
-  const steps = [
-    { 
-      id: 'add-clothes', 
-      label: '의상 추가', 
-      icon: Plus, 
-      enabled: true,
-      completed: clothingItems.length > 0
-    },
-    { 
-      id: 'profile', 
-      label: '기본 정보', 
-      icon: User, 
-      enabled: canGoToProfile,
-      completed: selectedGender && selectedBodyType
-    },
-    { 
-      id: 'generate', 
-      label: 'AI 코디', 
-      icon: Sparkles, 
-      enabled: canGenerate,
-      completed: false
-    }
-  ]
+  // 단계 진행 체크
+  const canProceedToProfile = clothingItems.length > 0
+  const canProceedToGenerate = selectedGender && selectedBodyType
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50">
@@ -152,214 +104,207 @@ function App() {
       {/* 진행 상태 표시 */}
       <div className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-center py-4">
+          <div className="flex items-center justify-between py-4">
             <div className="flex items-center space-x-8">
               {/* 1단계: 의상 추가 */}
-              <div className="flex items-center space-x-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+              <div className="flex items-center space-x-2">
+                <div className={cn(
+                  "w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium",
                   currentStep === 'add-clothes' 
-                    ? 'bg-purple-500 text-white' 
-                    : canGoToProfile
-                      ? 'bg-green-500 text-white'
-                      : 'bg-gray-200 text-gray-500'
-                }`}>
-                  {canGoToProfile && currentStep !== 'add-clothes' ? '✓' : '1'}
+                    ? "bg-purple-600 text-white" 
+                    : canProceedToProfile 
+                      ? "bg-green-500 text-white" 
+                      : "bg-gray-200 text-gray-500"
+                )}>
+                  {canProceedToProfile ? '✓' : '1'}
                 </div>
-                <span className={`font-medium ${
-                  currentStep === 'add-clothes' ? 'text-purple-600' : 'text-gray-600'
-                }`}>
+                <span className={cn(
+                  "text-sm font-medium",
+                  currentStep === 'add-clothes' ? "text-purple-600" : "text-gray-500"
+                )}>
                   의상 추가
                 </span>
               </div>
 
-              {/* 연결선 */}
-              <div className={`w-16 h-0.5 ${
-                canGoToProfile ? 'bg-green-500' : 'bg-gray-200'
-              }`} />
-
               {/* 2단계: 프로필 설정 */}
-              <div className="flex items-center space-x-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+              <div className="flex items-center space-x-2">
+                <div className={cn(
+                  "w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium",
                   currentStep === 'profile' 
-                    ? 'bg-purple-500 text-white' 
-                    : canGoToProfile
-                      ? 'bg-green-500 text-white'
-                      : 'bg-gray-200 text-gray-500'
-                }`}>
-                  {canGoToProfile && currentStep !== 'profile' ? '✓' : '2'}
+                    ? "bg-purple-600 text-white" 
+                    : canProceedToGenerate 
+                      ? "bg-green-500 text-white" 
+                      : "bg-gray-200 text-gray-500"
+                )}>
+                  {canProceedToGenerate ? '✓' : '2'}
                 </div>
-                <span className={`font-medium ${
-                  currentStep === 'profile' ? 'text-purple-600' : 'text-gray-600'
-                }`}>
-                  기본 정보
+                <span className={cn(
+                  "text-sm font-medium",
+                  currentStep === 'profile' ? "text-purple-600" : "text-gray-500"
+                )}>
+                  프로필 설정
                 </span>
               </div>
 
-              {/* 연결선 */}
-              <div className={`w-16 h-0.5 ${
-                canGoToProfile ? 'bg-green-500' : 'bg-gray-200'
-              }`} />
-
               {/* 3단계: 코디 생성 */}
-              <div className="flex items-center space-x-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+              <div className="flex items-center space-x-2">
+                <div className={cn(
+                  "w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium",
                   currentStep === 'generate' 
-                    ? 'bg-purple-500 text-white' 
-                    : 'bg-gray-200 text-gray-500'
-                }`}>
+                    ? "bg-purple-600 text-white" 
+                    : "bg-gray-200 text-gray-500"
+                )}>
                   3
                 </div>
-                <span className={`font-medium ${
-                  currentStep === 'generate' ? 'text-purple-600' : 'text-gray-600'
-                }`}>
+                <span className={cn(
+                  "text-sm font-medium",
+                  currentStep === 'generate' ? "text-purple-600" : "text-gray-500"
+                )}>
                   Virtual Try-On
                 </span>
               </div>
+            </div>
+
+            {/* 단계 이동 버튼 */}
+            <div className="flex items-center space-x-2">
+              {currentStep === 'add-clothes' && (
+                <button
+                  onClick={() => setCurrentStep('profile')}
+                  disabled={!canProceedToProfile}
+                  className={cn(
+                    "px-4 py-2 rounded-lg font-medium transition-colors",
+                    canProceedToProfile
+                      ? "bg-purple-600 text-white hover:bg-purple-700"
+                      : "bg-gray-200 text-gray-500 cursor-not-allowed"
+                  )}
+                >
+                  다음 단계
+                </button>
+              )}
+              
+              {currentStep === 'profile' && (
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => setCurrentStep('add-clothes')}
+                    className="px-4 py-2 rounded-lg font-medium text-gray-600 hover:text-gray-800 transition-colors"
+                  >
+                    이전
+                  </button>
+                  <button
+                    onClick={() => setCurrentStep('generate')}
+                    disabled={!canProceedToGenerate}
+                    className={cn(
+                      "px-4 py-2 rounded-lg font-medium transition-colors",
+                      canProceedToGenerate
+                        ? "bg-purple-600 text-white hover:bg-purple-700"
+                        : "bg-gray-200 text-gray-500 cursor-not-allowed"
+                    )}
+                  >
+                    다음 단계
+                  </button>
+                </div>
+              )}
+              
+              {currentStep === 'generate' && (
+                <button
+                  onClick={() => setCurrentStep('profile')}
+                  className="px-4 py-2 rounded-lg font-medium text-gray-600 hover:text-gray-800 transition-colors"
+                >
+                  이전
+                </button>
+              )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* 메인 콘텐츠 */}
+      {/* 메인 컨텐츠 */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* 단계 헤더 */}
-        <div className="mb-8 text-center">
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">{stepInfo.title}</h2>
-          <p className="text-gray-600">{stepInfo.description}</p>
-        </div>
-
-        {/* 단계별 컴포넌트 렌더링 */}
-        <div className="max-w-4xl mx-auto">
-          {currentStep === 'add-clothes' && (
-            <div className="space-y-8">
-              {/* 의상 추가 */}
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                <h3 className="text-xl font-semibold text-gray-900 mb-6 flex items-center gap-2">
-                  <Plus className="w-6 h-6 text-purple-600" />
-                  새 의상 추가
-                </h3>
-                <ClothingItemForm
-                  onSubmit={handleClothingItemAdd}
-                />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* 왼쪽: 의상 목록 */}
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-xl shadow-sm p-6 sticky top-8">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
+                  <Shirt className="w-5 h-5" />
+                  내 의상 ({clothingItems.length})
+                </h2>
+                <button
+                  onClick={() => setCurrentStep('add-clothes')}
+                  className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                >
+                  <Plus className="w-5 h-5" />
+                </button>
               </div>
-
-              {/* 등록된 의상 목록 */}
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                <h3 className="text-xl font-semibold text-gray-900 mb-6 flex items-center gap-2">
-                  <Shirt className="w-6 h-6 text-blue-600" />
-                  등록된 의상 ({clothingItems.length}개)
-                </h3>
-                
-                {clothingItems.length === 0 ? (
-                  <div className="text-center py-12">
-                    <Shirt className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                    <p className="text-gray-500 text-lg mb-2">아직 등록된 의상이 없습니다</p>
-                    <p className="text-gray-400 text-sm">위에서 의상을 추가해보세요</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {clothingItems.map((item) => (
-                      <div key={item.id} className="bg-gray-50 rounded-xl p-4 hover:bg-gray-100 transition-colors">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                              <Shirt className="w-4 h-4 text-purple-600" />
-                            </div>
-                            <div>
-                              <h4 className="font-medium text-gray-900 text-sm">{item.name}</h4>
-                              <p className="text-xs text-gray-500">{item.brand}</p>
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => handleItemSelect(item)}
-                            className={cn(
-                              'w-5 h-5 rounded border-2 flex items-center justify-center transition-colors',
-                              selectedItems.find(i => i.id === item.id)
-                                ? 'bg-purple-600 border-purple-600 text-white'
-                                : 'border-gray-300 hover:border-purple-400'
-                            )}
-                          >
-                            {selectedItems.find(i => i.id === item.id) && (
-                              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                              </svg>
-                            )}
-                          </button>
-                        </div>
-                        
-                        {item.imageUrl && (
-                          <img 
-                            src={item.imageUrl} 
-                            alt={item.name}
-                            className="w-full h-32 object-cover rounded-lg mb-3"
-                          />
-                        )}
-                        
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600">{item.category}</span>
-                          <span className="font-medium text-purple-600">
-                            {item.price.toLocaleString()}원
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {selectedItems.length > 0 && (
-                  <div className="mt-6 p-4 bg-purple-50 rounded-xl border border-purple-200">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-medium text-purple-900">
-                          {selectedItems.length}개 의상 선택됨
-                        </div>
-                        <div className="text-sm text-purple-700">
-                          총 {selectedItems.reduce((sum, item) => sum + item.price, 0).toLocaleString()}원
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => setCurrentStep('profile')}
-                        className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
-                      >
-                        <User className="w-4 h-4" />
-                        다음 단계
-                      </button>
+              
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {clothingItems.map((item, index) => (
+                  <div key={index} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                    {item.imageUrl && (
+                      <img 
+                        src={item.imageUrl} 
+                        alt={item.name}
+                        className="w-12 h-12 object-cover rounded-lg"
+                      />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">{item.name}</p>
+                      <p className="text-xs text-gray-500">{item.category}</p>
                     </div>
+                    <button
+                      onClick={() => handleDeleteClothingItem(index)}
+                      className="text-red-500 hover:text-red-700 text-sm"
+                    >
+                      삭제
+                    </button>
+                  </div>
+                ))}
+                
+                {clothingItems.length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    <Shirt className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                    <p>아직 추가된 의상이 없습니다</p>
                   </div>
                 )}
               </div>
             </div>
-          )}
+          </div>
 
-          {currentStep === 'profile' && (
-            <div className="space-y-8">
+          {/* 오른쪽: 현재 단계 컨텐츠 */}
+          <div className="lg:col-span-2">
+            {currentStep === 'add-clothes' && (
+              <ClothingItemForm onAddItem={handleAddClothingItem} />
+            )}
+            
+            {currentStep === 'profile' && (
               <UserProfileForm
-                selectedGender={selectedGender}
-                selectedBodyType={selectedBodyType}
                 onGenderSelect={handleGenderSelect}
                 onBodyTypeSelect={handleBodyTypeSelect}
                 onComplete={handleProfileComplete}
               />
-            </div>
-          )}
-
-          {currentStep === 'generate' && selectedGender && selectedBodyType && (
-            <OutfitGenerator
-              selectedGender={selectedGender}
-              selectedBodyType={selectedBodyType}
-              selectedItems={selectedItems}
-              onGenerate={handleOutfitGenerate}
-            />
-          )}
+            )}
+            
+            {currentStep === 'generate' && (
+              <OutfitGenerator
+                selectedItems={clothingItems}
+                userProfile={{ gender: selectedGender as string, bodyType: selectedBodyType as string }}
+                onOpenSettings={() => setShowSettings(true)}
+              />
+            )}
+          </div>
         </div>
       </main>
 
       {/* 설정 모달 */}
       {showSettings && (
-        <SettingsForm onClose={() => setShowSettings(false)} />
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <SettingsForm onClose={() => setShowSettings(false)} />
+          </div>
+        </div>
       )}
 
-      {/* 플로팅 도움말 버튼 */}
+      {/* 사용 가이드 */}
       <div className="fixed bottom-6 right-6 z-40">
         <div className="bg-white rounded-lg shadow-lg p-4 max-w-xs">
           <h4 className="font-semibold text-gray-800 mb-2">💡 사용 가이드</h4>

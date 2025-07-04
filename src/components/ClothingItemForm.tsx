@@ -3,217 +3,150 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'react-hot-toast';
-import { Plus, Sparkles } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { cn, generateId } from '../utils';
 import { analyzeClothingFromUrl, getSimpleGenerator } from '../utils/openai';
-import type { ClothingItem } from '../types';
 import { clothingCategories } from '../data/categories';
-import type { ClothingCategoryType } from '../types';
+import type { ClothingItem, ClothingCategoryType } from '../types';
 
 // 간단한 스키마 - 필수 정보만
-const clothingItemSchema = z.object({
-  originalUrl: z.string()
-    .min(1, '상품 URL을 입력해주세요')
-    .url('올바른 URL 형식이 아닙니다'),
-  name: z.string().min(1, '상품명을 입력해주세요'),
-  category: z.enum(['tops', 'bottoms', 'outerwear', 'shoes', 'accessories'] as const),
-  price: z.number().min(0, '가격을 입력해주세요')
+const clothingSchema = z.object({
+  url: z.string().url('올바른 URL을 입력해주세요'),
+  name: z.string().min(1, '의상 이름을 입력해주세요'),
+  category: z.string().min(1, '카테고리를 선택해주세요'),
+  brand: z.string().optional(),
+  price: z.number().min(0).optional(),
+  imageUrl: z.string().optional(),
 });
 
-type ClothingItemFormType = z.infer<typeof clothingItemSchema>;
+type ClothingFormData = z.infer<typeof clothingSchema>;
 
 interface ClothingItemFormProps {
-  onSubmit: (item: ClothingItem) => void;
-  onCancel?: () => void;
-  className?: string;
+  onAddItem: (item: ClothingItem) => void;
 }
 
-const CATEGORIES = [
-  { value: 'tops', label: '상의', icon: '👕' },
-  { value: 'bottoms', label: '하의', icon: '👖' },
-  { value: 'outerwear', label: '아우터', icon: '🧥' },
-  { value: 'shoes', label: '신발', icon: '👟' },
-  { value: 'accessories', label: '액세서리', icon: '👜' }
-];
-
-const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onSubmit, onCancel, className }) => {
+const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisStep, setAnalysisStep] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
   const [previewItem, setPreviewItem] = useState<{
     name: string;
     category: ClothingCategoryType;
-    imageUrl?: string;
     brand?: string;
     price?: number;
-    originalUrl?: string;
+    imageUrl?: string;
+    originalUrl: string;
   } | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
     watch,
-    setValue,
-    reset
-  } = useForm<ClothingItemFormType>({
-    resolver: zodResolver(clothingItemSchema),
+    reset,
+    formState: { errors }
+  } = useForm<ClothingFormData>({
+    resolver: zodResolver(clothingSchema),
     defaultValues: {
-      price: 50000,
-      category: 'tops'
+      url: '',
+      name: '',
+      category: '',
+      brand: '',
+      price: undefined,
+      imageUrl: ''
     }
   });
 
-  const watchedUrl = watch('originalUrl');
+  const watchedUrl = watch('url');
 
-  const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setError(null);
-    if (previewItem) {
-      setPreviewItem(null);
-    }
-  };
-
+  // URL 분석 함수
   const analyzeUrl = async () => {
-    if (!watchedUrl.trim()) {
-      setError('URL을 입력해주세요.');
-      return;
-    }
-
-    // URL 형식 검증
-    try {
-      new URL(watchedUrl);
-    } catch {
-      setError('올바른 URL을 입력해주세요.');
-      return;
-    }
+    if (!watchedUrl) return;
 
     setIsAnalyzing(true);
     setError(null);
 
     try {
-      const result = await analyzeClothingFromUrl(watchedUrl);
-      setPreviewItem({
-        ...result,
-        category: result.category as ClothingCategoryType,
-        originalUrl: watchedUrl
-      });
+      const generator = getSimpleGenerator();
+      const result = await analyzeClothingFromUrl(watchedUrl, generator);
+      
+      if (result.success && result.data) {
+        setPreviewItem({
+          name: result.data.name,
+          category: result.data.category as ClothingCategoryType,
+          brand: result.data.brand,
+          price: result.data.price,
+          imageUrl: result.data.imageUrl,
+          originalUrl: watchedUrl
+        });
+        toast.success('의상 정보가 분석되었습니다!');
+      } else {
+        setError(result.error || '의상 정보를 분석할 수 없습니다.');
+      }
     } catch (err) {
-      console.error('URL 분석 실패:', err);
-      setError('URL 분석에 실패했습니다. 다른 URL을 시도해보세요.');
+      console.error('Analysis error:', err);
+      setError('분석 중 오류가 발생했습니다.');
     } finally {
       setIsAnalyzing(false);
     }
   };
 
-  const handleFormSubmit = async (data: ClothingItemFormType) => {
-    try {
-      // 이미지 추출
-      const generator = getSimpleGenerator();
-      const imageUrl = await generator.extractImageFromUrl(data.originalUrl);
-      
-      const hostname = new URL(data.originalUrl).hostname;
-      const brandName = hostname.split('.')[0];
-      
-      const newItem: ClothingItem = {
-        id: generateId(),
-        name: data.name,
-        brand: brandName || '브랜드',
-        category: data.category,
-        price: data.price,
-        imageUrl: imageUrl || '',
-        description: `${data.name} - ${hostname}에서 가져온 상품`,
-        colors: ['기본색상'],
-        sizes: ['프리사이즈'],
-        tags: [data.category],
-        originalUrl: data.originalUrl,
-        createdAt: new Date().toISOString()
-      };
-
-      onSubmit(newItem);
-      reset();
-      
-    } catch (error) {
-      console.error('의상 추가 실패:', error);
-      toast.error('의상 추가에 실패했습니다');
-    }
-  };
-
-  const handleAddItem = () => {
+  // 미리보기 아이템 추가
+  const addPreviewItem = () => {
     if (!previewItem) return;
 
-    onSubmit({
+    const newItem: ClothingItem = {
       id: generateId(),
       name: previewItem.name,
-      brand: previewItem.brand || '브랜드',
       category: previewItem.category,
-      price: previewItem.price || 50000,
+      brand: previewItem.brand || '',
+      price: previewItem.price || 0,
       imageUrl: previewItem.imageUrl || '',
-      description: `${previewItem.name} - ${new URL(previewItem.originalUrl || '').hostname}에서 가져온 상품`,
-      colors: ['기본색상'],
-      sizes: ['프리사이즈'],
-      tags: [previewItem.category],
-      originalUrl: previewItem.originalUrl || '',
+      url: previewItem.originalUrl,
       createdAt: new Date().toISOString()
-    });
+    };
 
-    // 폼 초기화
-    reset();
+    onAddItem(newItem);
     setPreviewItem(null);
-    setError(null);
+    reset();
   };
 
-  const handleCategoryChange = (category: ClothingCategoryType) => {
-    if (previewItem) {
-      setPreviewItem({
-        ...previewItem,
-        category
-      });
-    }
-  };
+  // 폼 제출
+  const onSubmit = (data: ClothingFormData) => {
+    const newItem: ClothingItem = {
+      id: generateId(),
+      name: data.name,
+      category: data.category as ClothingCategoryType,
+      brand: data.brand || '',
+      price: data.price || 0,
+      imageUrl: data.imageUrl || '',
+      url: data.url,
+      createdAt: new Date().toISOString()
+    };
 
-  const handleNameChange = (name: string) => {
-    if (previewItem) {
-      setPreviewItem({
-        ...previewItem,
-        name
-      });
-    }
+    onAddItem(newItem);
+    reset();
+    toast.success('의상이 추가되었습니다!');
   };
 
   return (
-    <div className={cn('w-full', className)}>
-      <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
-        <div className="text-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">
-            🛍️ 의상 추가
-          </h2>
-          <p className="text-gray-600">
-            쇼핑몰 URL을 입력하면 AI가 자동으로 의상 정보를 분석합니다
-          </p>
-        </div>
+    <div className="bg-white rounded-xl shadow-sm p-6">
+      <h2 className="text-xl font-semibold text-gray-800 mb-6 flex items-center gap-2">
+        <Plus className="w-5 h-5" />
+        새 의상 추가
+      </h2>
 
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         {/* URL 입력 */}
-        <div className="space-y-3">
-          <label className="block text-sm font-medium text-gray-700">
-            의상 URL
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            상품 URL
           </label>
           <div className="flex gap-2">
-            <div className="flex-1">
-              <input
-                {...register('originalUrl')}
-                type="url"
-                placeholder="예: https://store.example.com/product/123"
-                className={cn(
-                  'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500',
-                  errors.originalUrl ? 'border-red-300' : 'border-gray-300'
-                )}
-                value={watchedUrl}
-                onChange={handleUrlChange}
-              />
-              {errors.originalUrl && (
-                <p className="text-red-600 text-xs mt-1">{errors.originalUrl.message}</p>
-              )}
-            </div>
+            <input
+              {...register('url')}
+              type="url"
+              placeholder="https://example.com/product/123"
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            />
             <button
               type="button"
               onClick={analyzeUrl}
@@ -259,53 +192,41 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onSubmit, onCancel,
 
         {/* 분석 결과 미리보기 */}
         {previewItem && (
-          <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-            <h3 className="text-lg font-semibold mb-4 text-gray-700">
-              📋 분석 결과
-            </h3>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-blue-900">분석 결과</h3>
+              <button
+                type="button"
+                onClick={addPreviewItem}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm"
+              >
+                이 의상 추가하기
+              </button>
+            </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* 이미지 미리보기 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  이미지 미리보기
-                </label>
-                {previewItem.imageUrl ? (
-                  <div className="relative">
-                    <img
-                      src={previewItem.imageUrl}
-                      alt={previewItem.name}
-                      className="w-full h-48 object-cover rounded-lg shadow-sm"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0xMDAgMTAwTDEwMCAxMDBaIiBzdHJva2U9IiM5Q0E1QUYiIHN0cm9rZS13aWR0aD0iMiIvPgo8dGV4dCB4PSIxMDAiIHk9IjEwNSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzlDQTVBRiIgZm9udC1zaXplPSIxMiI+Tm8gSW1hZ2U8L3RleHQ+Cjwvc3ZnPgo=';
-                      }}
-                    />
-                    <div className="absolute top-2 right-2 bg-green-500 text-white px-2 py-1 rounded-full text-xs">
-                      ✓ 이미지 포함
-                    </div>
-                  </div>
-                ) : (
-                  <div className="w-full h-48 bg-gray-200 rounded-lg flex items-center justify-center">
-                    <div className="text-center text-gray-500">
-                      <div className="text-4xl mb-2">📷</div>
-                      <p className="text-sm">이미지 없음</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* 정보 수정 */}
-              <div className="space-y-4">
+              {previewItem.imageUrl && (
+                <div>
+                  <img 
+                    src={previewItem.imageUrl} 
+                    alt={previewItem.name}
+                    className="w-full h-48 object-cover rounded-lg"
+                  />
+                </div>
+              )}
+              
+              {/* 정보 */}
+              <div className="space-y-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    상품명
+                    의상 이름
                   </label>
                   <input
                     type="text"
                     value={previewItem.name}
-                    onChange={(e) => handleNameChange(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    readOnly
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
                   />
                 </div>
 
@@ -313,17 +234,17 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onSubmit, onCancel,
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     카테고리
                   </label>
-                                     <select
-                     value={previewItem.category}
-                     onChange={(e) => handleCategoryChange(e.target.value as ClothingCategoryType)}
-                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                   >
-                     {clothingCategories.map((category) => (
-                       <option key={category.id} value={category.id}>
-                         {category.icon} {category.displayName}
-                       </option>
-                     ))}
-                   </select>
+                  <select
+                    value={previewItem.category}
+                    disabled
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                  >
+                    {clothingCategories.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 {previewItem.brand && (
@@ -372,55 +293,96 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onSubmit, onCancel,
                 </div>
               </div>
             </div>
+          </div>
+        )}
 
-            {/* 추가 버튼 */}
-            <div className="mt-4 flex justify-end">
-              <button
-                onClick={handleAddItem}
-                className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+        {/* 수동 입력 폼 */}
+        {!previewItem && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                의상 이름 *
+              </label>
+              <input
+                {...register('name')}
+                type="text"
+                placeholder="예: 화이트 셔츠"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              />
+              {errors.name && (
+                <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                카테고리 *
+              </label>
+              <select
+                {...register('category')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               >
-                ✓ 의상 추가
-              </button>
+                <option value="">카테고리 선택</option>
+                {clothingCategories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+              {errors.category && (
+                <p className="mt-1 text-sm text-red-600">{errors.category.message}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                브랜드
+              </label>
+              <input
+                {...register('brand')}
+                type="text"
+                placeholder="예: 유니클로"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                가격
+              </label>
+              <input
+                {...register('price', { valueAsNumber: true })}
+                type="number"
+                placeholder="예: 29000"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                이미지 URL
+              </label>
+              <input
+                {...register('imageUrl')}
+                type="url"
+                placeholder="https://example.com/image.jpg"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              />
             </div>
           </div>
         )}
 
         {/* 제출 버튼 */}
-        <div className="flex gap-3">
-          {onCancel && (
-            <button
-              type="button"
-              onClick={onCancel}
-              className="flex-1 py-2 px-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              취소
-            </button>
-          )}
+        {!previewItem && (
           <button
             type="submit"
-            disabled={isSubmitting || isAnalyzing}
-            className={cn(
-              'flex-1 py-2 px-4 rounded-lg font-medium transition-colors flex items-center justify-center gap-2',
-              isSubmitting || isAnalyzing
-                ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                : 'bg-purple-600 text-white hover:bg-purple-700'
-            )}
+            className="w-full bg-purple-600 text-white py-3 px-4 rounded-lg hover:bg-purple-700 transition-colors font-medium"
           >
-            {isSubmitting ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                추가 중...
-              </>
-            ) : (
-              <>
-                <Plus className="w-4 h-4" />
-                의상 추가
-              </>
-            )}
+            의상 추가하기
           </button>
-        </div>
+        )}
 
-        {/* 도움말 */}
+        {/* 사용 팁 */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <h4 className="font-medium text-blue-900 text-sm mb-2">
             💡 사용 팁

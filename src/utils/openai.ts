@@ -172,7 +172,7 @@ class VirtualTryOnGenerator implements VirtualTryOnGeneration {
       // 기준 인물 이미지 처리
       let personImageBase64 = basePersonImage;
       if (!personImageBase64) {
-        personImageBase64 = this.generateDefaultPersonImage(userProfile);
+        personImageBase64 = this.generateDefaultPersonImage();
       }
 
       // OpenAI DALL-E 3 API 호출 (이미지 편집 방식)
@@ -226,7 +226,7 @@ class VirtualTryOnGenerator implements VirtualTryOnGeneration {
       // 기준 인물 이미지
       let personImageBase64 = basePersonImage;
       if (!personImageBase64) {
-        personImageBase64 = this.generateDefaultPersonImage(userProfile);
+        personImageBase64 = this.generateDefaultPersonImage();
       }
 
       // Replicate Virtual Try-On 모델 사용
@@ -286,7 +286,7 @@ class VirtualTryOnGenerator implements VirtualTryOnGeneration {
       // 기준 인물 이미지
       let personImageBase64 = basePersonImage;
       if (!personImageBase64) {
-        personImageBase64 = this.generateDefaultPersonImage(userProfile);
+        personImageBase64 = this.generateDefaultPersonImage();
       }
 
       // LightX Virtual Try-On API 호출
@@ -441,31 +441,19 @@ class VirtualTryOnGenerator implements VirtualTryOnGeneration {
     return descriptions[bodyType as keyof typeof descriptions] || 'average';
   }
 
-  private generateDefaultPersonImage(userProfile: { gender: string; bodyType: string }): string {
-    // 기본 인물 이미지 생성 (실제로는 더 정교한 구현 필요)
-    const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 768;
-    const ctx = canvas.getContext('2d')!;
-    
-    // 배경
-    ctx.fillStyle = '#f0f0f0';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    // 간단한 인물 실루엣
-    ctx.fillStyle = '#d0d0d0';
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
-    
-    // 머리
-    ctx.beginPath();
-    ctx.arc(centerX, centerY - 200, 60, 0, Math.PI * 2);
-    ctx.fill();
-    
-    // 몸통
-    ctx.fillRect(centerX - 80, centerY - 140, 160, 280);
-    
-    return canvas.toDataURL();
+  private generateDefaultPersonImage(): string {
+    // 기본 마네킹 이미지 (심플하고 평범한 마네킹)
+    return `data:image/svg+xml;base64,${btoa(`
+      <svg width="400" height="600" viewBox="0 0 400 600" xmlns="http://www.w3.org/2000/svg">
+        <rect width="400" height="600" fill="#f8f9fa"/>
+        <circle cx="200" cy="120" r="40" fill="#e9ecef" stroke="#dee2e6" stroke-width="2"/>
+        <rect x="160" y="160" width="80" height="120" fill="#e9ecef" stroke="#dee2e6" stroke-width="2"/>
+        <rect x="140" y="280" width="120" height="200" fill="#e9ecef" stroke="#dee2e6" stroke-width="2"/>
+        <rect x="120" y="480" width="40" height="80" fill="#e9ecef" stroke="#dee2e6" stroke-width="2"/>
+        <rect x="240" y="480" width="40" height="80" fill="#e9ecef" stroke="#dee2e6" stroke-width="2"/>
+        <text x="200" y="550" text-anchor="middle" fill="#6c757d" font-family="Arial" font-size="14">기본 마네킹</text>
+      </svg>
+    `)}`;
   }
 
   private async generateFallback(

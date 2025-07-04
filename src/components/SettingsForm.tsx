@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { updateAIConfig, type AIApiConfig } from '../utils/openai';
-import { Key, Eye, EyeOff, Settings, CheckCircle } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import { cn } from '../utils';
 
 interface SettingsFormProps {
