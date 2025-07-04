@@ -600,17 +600,146 @@ class VirtualTryOnGenerator implements VirtualTryOnGeneration {
   }
 }
 
-// AI 기반 의상 분석 함수 (스크린샷 기반 전용)
+// HTML 응답을 직접 분석하는 함수
+async function analyzeHTMLContent(htmlContent: string): Promise<SimpleAnalysisResult> {
+  const openai = getOpenAI();
+  
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "system",
+          content: `당신은 의류 상품 정보를 분석하는 전문가입니다. 
+          주어진 HTML 콘텐츠에서 의류 상품의 정보를 추출하여 JSON 형태로 반환해주세요.
+          
+          HTML에서 다음 정보들을 찾아서 분석해주세요:
+          1. 메타태그 정보 (title, og:title, og:description, product:* 등)
+          2. JavaScript 객체 내의 상품 정보 (window.__MSS__, __NEXT_DATA__ 등)
+          3. 구조화된 데이터와 스크립트 태그 내용
+          
+          반드시 다음 JSON 형식으로 응답해주세요:
+          {
+            "name": "상품명",
+            "category": "카테고리 (상의/하의/아우터/원피스/기타)",
+            "color": "색상",
+            "brand": "브랜드명",
+            "price": 가격숫자,
+            "originalPrice": 원가숫자,
+            "discountRate": 할인율숫자,
+            "description": "상품 설명",
+            "material": "소재/원단 정보",
+            "fit": "핏 정보",
+            "imageUrl": "대표 이미지 URL",
+            "colors": ["색상1", "색상2"],
+            "features": ["특징1", "특징2"]
+          }`
+        },
+        {
+          role: "user",
+          content: `다음 HTML 콘텐츠를 분석해서 의류 상품 정보를 추출해주세요:\n\n${htmlContent.substring(0, 15000)}` // 토큰 제한 고려
+        }
+      ],
+      max_tokens: 2000,
+      temperature: 0.1
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      throw new Error('OpenAI API 응답이 비어있습니다.');
+    }
+
+    // JSON 응답 파싱
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('응답에서 JSON 형식을 찾을 수 없습니다.');
+    }
+
+    const analysisResult = JSON.parse(jsonMatch[0]);
+    
+    // SimpleAnalysisResult 형식으로 변환
+    return {
+      name: analysisResult.name || '상품명 미확인',
+      category: analysisResult.category || '기타',
+      imageUrl: analysisResult.imageUrl || undefined,
+      originalUrl: '',
+      brand: analysisResult.brand || '브랜드 미확인',
+      price: analysisResult.price || 0,
+      colors: analysisResult.colors || (analysisResult.color ? [analysisResult.color] : undefined),
+      material: analysisResult.material || '',
+      fit: analysisResult.fit || '',
+      description: analysisResult.description || ''
+    };
+  } catch (error) {
+    console.error('HTML 분석 중 오류 발생:', error);
+    throw new Error(`HTML 분석 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
+  }
+}
+
+// URL에서 HTML을 가져와서 분석하는 함수
+async function fetchAndAnalyzeHTML(url: string): Promise<SimpleAnalysisResult> {
+  try {
+    console.log('HTML 페치 및 분석 시작:', url);
+    
+    // CORS 우회를 위한 프록시 사용
+    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+    
+    const response = await fetch(proxyUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const htmlContent = await response.text();
+    console.log('HTML 콘텐츠 페치 성공, 길이:', htmlContent.length);
+    
+    // HTML 콘텐츠 분석
+    const result = await analyzeHTMLContent(htmlContent);
+    result.originalUrl = url;
+    
+    return result;
+  } catch (error) {
+    console.error('HTML 페치 및 분석 중 오류 발생:', error);
+    throw new Error(`페이지 분석 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
+  }
+}
+
+// OpenAI 클라이언트 가져오기
+function getOpenAI() {
+  if (!currentConfig.openaiApiKey) {
+    throw new Error('OpenAI API 키가 설정되지 않았습니다.');
+  }
+  
+  return new (window as any).OpenAI({
+    apiKey: currentConfig.openaiApiKey,
+    dangerouslyAllowBrowser: true
+  });
+}
+
+// AI 기반 의상 분석 함수 (HTML 직접 분석 우선)
 export async function analyzeClothingFromUrl(url: string): Promise<SimpleAnalysisResult> {
   try {
-    console.log('🔍 AI 의상 URL 분석 시작:', url);
+    console.log('🔍 AI 의상 URL 분석 시작 (HTML 직접 분석):', url);
     console.log('현재 AI 설정:', currentConfig);
     
-    // AI 설정이 활성화되어 있으면 스크린샷 기반 분석만 시도
+    // AI 설정이 활성화되어 있으면 HTML 직접 분석 시도
     if (currentConfig.useAI && currentConfig.openaiApiKey) {
-      console.log('✅ AI 분석 조건 만족 - 스크린샷 기반 분석만 시도');
+      console.log('✅ AI 분석 조건 만족 - HTML 직접 분석 시도');
       
-      // 스크린샷 기반 AI 분석 시도 (유일한 AI 분석 방식)
+      // HTML 직접 분석 시도 (1순위)
+      try {
+        const htmlResult = await fetchAndAnalyzeHTML(url);
+        console.log('🎯 HTML 직접 분석 성공:', htmlResult);
+        return htmlResult;
+      } catch (error) {
+        console.warn('❌ HTML 직접 분석 실패 - 스크린샷 분석으로 전환:', error);
+      }
+      
+      // 스크린샷 기반 AI 분석 시도 (2순위 - 백업)
       try {
         const screenshotResult = await analyzeClothingWithScreenshot(url);
         if (screenshotResult) {
@@ -629,8 +758,8 @@ export async function analyzeClothingFromUrl(url: string): Promise<SimpleAnalysi
       });
     }
 
-    // 스크린샷 기반 AI 분석이 실패했거나 사용하지 않는 경우 기본 분석
-    console.log('📋 기본 분석으로 전환 (스크린샷 AI 분석 불가)');
+    // AI 분석이 실패했거나 사용하지 않는 경우 기본 분석
+    console.log('📋 기본 분석으로 전환 (AI 분석 불가)');
     const generator = getVirtualTryOnGenerator();
     const imageUrl = await generator.extractImageFromUrl(url);
     

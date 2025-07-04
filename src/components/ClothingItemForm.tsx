@@ -204,20 +204,20 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
 
         {/* 분석 중 상태 표시 */}
         {isAnalyzing && (
-          <div className="mt-4 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200">
+          <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-200">
             <div className="flex items-center gap-3 mb-3">
-              <div className="w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin"></div>
-              <span className="text-green-700 font-medium">📸 완전 로딩 기반 스크린샷 분석</span>
+              <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+              <span className="text-blue-700 font-medium">📄 HTML 직접 분석</span>
             </div>
-            <div className="text-sm text-green-600 mb-2">
+            <div className="text-sm text-blue-600 mb-2">
               {analysisStatus}
             </div>
-            <div className="text-xs text-green-500 space-y-1">
-              <div>✅ 1단계: DOM 완전 로딩 대기 (3초)</div>
-              <div>✅ 2단계: 모든 이미지 로딩 완료 대기</div>
-              <div>✅ 3단계: 지연 로딩 콘텐츠 활성화 (스크롤)</div>
-              <div>✅ 4단계: 최종 안정화 후 스크린샷 촬영</div>
-              <div>🤖 GPT-4o Vision으로 화면 직접 분석</div>
+            <div className="text-xs text-blue-500 space-y-1">
+              <div>✅ 1단계: 페이지 HTML 콘텐츠 페치</div>
+              <div>✅ 2단계: 메타태그 정보 추출</div>
+              <div>✅ 3단계: JSON 구조화 데이터 파싱</div>
+              <div>✅ 4단계: 상품 정보 종합 분석</div>
+              <div>🤖 GPT-4o로 HTML 콘텐츠 직접 분석</div>
             </div>
           </div>
         )}
@@ -342,6 +342,8 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
             💡 상품 페이지 URL을 입력하면 AI가 자동으로 정보를 추출합니다
           </p>
         </div>
+
+
       </div>
     </div>
   );
