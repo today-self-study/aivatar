@@ -8,7 +8,7 @@ import ClothingItemForm from './components/ClothingItemForm'
 import OutfitGenerator from './components/OutfitGenerator'
 import UserProfileForm from './components/UserProfileForm'
 import SettingsForm from './components/SettingsForm'
-import { initializeSimpleGenerator } from './utils/openai'
+import { initializeSimpleGenerator, type AIApiConfig } from './utils/openai'
 import type { 
   ClothingItem, 
   OutfitGeneration, 
@@ -27,6 +27,10 @@ function App() {
   const [selectedBodyType, setSelectedBodyType] = useState<BodyType | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [showAIPrompt, setShowAIPrompt] = useState(false)
+  
+  // AI 설정 상태
+  const [aiConfig] = useLocalStorage<AIApiConfig>('ai-api-config', { provider: 'fallback' })
 
   // 로컬 스토리지에서 프로필 정보 로드
   const [profileData] = useLocalStorage<{ gender?: string; bodyType?: string }>('user-profile', {})
@@ -40,7 +44,7 @@ function App() {
       setSelectedGender(profileData.gender as Gender)
     }
     if (profileData?.bodyType) {
-      setSelectedBodyType(profileData.bodyType as BodyType)
+      setSelectedBodyType(profileData.bodyType as any)
     }
   }, [profileData])
 
@@ -62,17 +66,17 @@ function App() {
     setSelectedGender(gender)
   }
 
-  // 체형 선택
-  const handleBodyTypeSelect = (bodyType: string) => {
-    setSelectedBodyType(bodyType as unknown as BodyType)
-  }
-
   // 프로필 완료
   const handleProfileComplete = (gender: string, bodyType: string) => {
     setSelectedGender(gender as Gender)
-    setSelectedBodyType(bodyType as unknown as BodyType)
+    setSelectedBodyType(bodyType as any)
     setCurrentStep('generate')
     toast.success('프로필이 설정되었습니다!')
+  }
+
+  // 프로필 단계에서 뒤로가기
+  const handleProfileBack = () => {
+    setCurrentStep('add-clothes')
   }
 
   // 단계 진행 체크
@@ -278,16 +282,15 @@ function App() {
             
             {currentStep === 'profile' && (
               <UserProfileForm
-                onGenderSelect={handleGenderSelect}
-                onBodyTypeSelect={handleBodyTypeSelect}
                 onComplete={handleProfileComplete}
+                onBack={handleProfileBack}
               />
             )}
             
             {currentStep === 'generate' && (
               <OutfitGenerator
                 selectedItems={clothingItems}
-                userProfile={{ gender: selectedGender as string, bodyType: selectedBodyType as string }}
+                userProfile={{ gender: selectedGender as string, bodyType: selectedBodyType as any }}
                 onOpenSettings={() => setShowSettings(true)}
               />
             )}
@@ -304,6 +307,42 @@ function App() {
         </div>
       )}
 
+      {/* AI 설정 권장 알림 */}
+      {!aiConfig.openaiApiKey && currentStep === 'generate' && !showAIPrompt && (
+        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 max-w-md mx-4">
+          <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl shadow-lg p-6">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <h4 className="font-bold text-lg mb-2">🚀 AI 기능 업그레이드</h4>
+                <p className="text-sm mb-4 opacity-90">
+                  OpenAI API 키를 설정하면 실제 AI가 의상을 분석하고 고품질 Virtual Try-On 이미지를 생성할 수 있습니다!
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowSettings(true)}
+                    className="bg-white text-purple-600 px-4 py-2 rounded-lg font-medium text-sm hover:bg-gray-100 transition-colors"
+                  >
+                    AI 설정하기
+                  </button>
+                  <button
+                    onClick={() => setShowAIPrompt(true)}
+                    className="text-white px-4 py-2 rounded-lg font-medium text-sm hover:bg-white hover:bg-opacity-20 transition-colors"
+                  >
+                    나중에
+                  </button>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowAIPrompt(true)}
+                className="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-1 ml-2"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 사용 가이드 */}
       <div className="fixed bottom-6 right-6 z-40">
         <div className="bg-white rounded-lg shadow-lg p-4 max-w-xs">
@@ -313,6 +352,7 @@ function App() {
               <>
                 <p>• 온라인 쇼핑몰 상품 URL을 입력하세요</p>
                 <p>• 여러 의상을 추가할 수 있습니다</p>
+                <p>• '분석' 버튼으로 AI가 의상을 자동 분석합니다</p>
               </>
             )}
             {currentStep === 'profile' && (
@@ -323,11 +363,28 @@ function App() {
             )}
             {currentStep === 'generate' && (
               <>
-                <p>• AI 설정에서 API 키를 등록하면 고품질 이미지를 생성할 수 있습니다</p>
-                <p>• 기준 이미지를 업로드하면 더 정확한 결과를 얻을 수 있습니다</p>
+                {aiConfig.openaiApiKey ? (
+                  <>
+                    <p>• 🎉 AI 기능이 활성화되었습니다!</p>
+                    <p>• 실제 AI가 의상을 분석하고 고품질 이미지를 생성합니다</p>
+                  </>
+                ) : (
+                  <>
+                    <p>• AI 설정에서 API 키를 등록하면 고품질 이미지를 생성할 수 있습니다</p>
+                    <p>• 기준 이미지를 업로드하면 더 정확한 결과를 얻을 수 있습니다</p>
+                  </>
+                )}
               </>
             )}
           </div>
+          {!aiConfig.openaiApiKey && currentStep === 'generate' && (
+            <button
+              onClick={() => setShowSettings(true)}
+              className="mt-3 w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white px-3 py-2 rounded-lg text-sm font-medium hover:from-purple-600 hover:to-pink-600 transition-colors"
+            >
+              AI 설정하기
+            </button>
+          )}
         </div>
       </div>
 

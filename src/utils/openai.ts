@@ -16,6 +16,8 @@ export interface SimpleAnalysisResult {
   imageUrl?: string;
   brand?: string;
   price?: number;
+  colors?: string[];
+  description?: string;
 }
 
 // API 설정 타입
@@ -357,51 +359,61 @@ class VirtualTryOnGenerator implements VirtualTryOnGeneration {
     }
 
     try {
-      // 의상 이미지들을 Base64로 변환
-      const clothingImages = await Promise.all(
-        selectedItems.map(async (item) => ({
-          category: item.category,
-          name: item.name,
-          base64: await ImageProcessor.urlToBase64(item.imageUrl),
-          resized: await ImageProcessor.resizeImage(
-            await ImageProcessor.urlToBase64(item.imageUrl)
-          )
-        }))
-      );
+      // 의상 설명 생성
+      const clothingDescriptions = selectedItems.map(item => 
+        `${item.name} (${this.getCategoryName(item.category)})`
+      ).join(', ');
 
-      // 기준 인물 이미지 처리
-      let personImageBase64 = basePersonImage;
-      if (!personImageBase64) {
-        personImageBase64 = this.generateDefaultPersonImage();
-      }
+      const genderText = userProfile.gender === 'male' ? '남성' : '여성';
+      const bodyTypeText = this.getBodyTypeDescription(userProfile.bodyType);
 
-      // OpenAI DALL-E 3 API 호출 (이미지 편집 방식)
-      const response = await fetch('https://api.openai.com/v1/images/edits', {
+      // DALL-E 3 프롬프트 생성 (텍스트 기반)
+      const prompt = `A high-quality, professional fashion photograph of a ${genderText} model with ${bodyTypeText} body type wearing ${clothingDescriptions}. The model should be standing in a neutral pose against a clean, minimalist background. The lighting should be soft and professional, highlighting the clothing details. The image should look like a high-end fashion catalog photo with natural colors and realistic proportions. Style: modern, clean, professional fashion photography.`;
+
+      console.log('DALL-E 3 프롬프트:', prompt);
+
+      // OpenAI DALL-E 3 API 호출
+      const response = await fetch('https://api.openai.com/v1/images/generations', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${this.config.openaiApiKey}`,
-          'Content-Type': 'multipart/form-data'
+          'Content-Type': 'application/json'
         },
-        body: this.createMultipartFormData({
-          image: personImageBase64,
-          mask: await this.createClothingMask(clothingImages),
-          prompt: this.generateImageBasedPrompt(userProfile, clothingImages),
+        body: JSON.stringify({
+          model: 'dall-e-3',
+          prompt: prompt,
           n: 1,
-          size: "1024x1024"
+          size: '1024x1792', // 세로가 긴 패션 이미지
+          quality: 'hd',
+          style: 'natural'
         })
       });
 
       if (!response.ok) {
-        throw new Error(`OpenAI API 오류: ${response.status}`);
+        const errorData = await response.json();
+        console.error('OpenAI API 오류 상세:', errorData);
+        throw new Error(`OpenAI API 오류: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
       }
 
       const result = await response.json();
+      console.log('DALL-E 3 생성 성공:', result.data[0].url);
       return result.data[0].url;
 
     } catch (error) {
       console.error('OpenAI 생성 실패:', error);
       throw error;
     }
+  }
+
+  private getCategoryName(category: string): string {
+    const categoryNames: { [key: string]: string } = {
+      'tops': '상의',
+      'bottoms': '하의',
+      'outerwear': '아우터',
+      'shoes': '신발',
+      'accessories': '액세서리'
+    };
+    return categoryNames[category] || category;
   }
 
   private async generateWithReplicate(
@@ -888,50 +900,152 @@ class VirtualTryOnGenerator implements VirtualTryOnGeneration {
   }
 }
 
-// 향상된 의상 분석 함수
+// AI 기반 의상 분석 함수
 export async function analyzeClothingFromUrl(url: string): Promise<SimpleAnalysisResult> {
   try {
-    console.log('의상 URL 분석 시작:', url);
+    console.log('AI 의상 URL 분석 시작:', url);
     
-    const generator = new VirtualTryOnGenerator({ provider: 'fallback' });
+    const generator = getVirtualTryOnGenerator();
     const imageUrl = await generator.extractImageFromUrl(url);
     
-    // URL 기반 분석
-    const urlAnalysis = analyzeUrlKeywords(url);
+    // 이미지가 있으면 AI 분석 시도
+    if (imageUrl && currentConfig.provider !== 'fallback' && currentConfig.openaiApiKey) {
+      try {
+        const aiAnalysis = await analyzeClothingWithAI(imageUrl, url);
+        if (aiAnalysis) {
+          console.log('AI 분석 성공:', aiAnalysis);
+          return aiAnalysis;
+        }
+      } catch (error) {
+        console.warn('AI 분석 실패, 기본 분석으로 전환:', error);
+      }
+    }
     
-    // 도메인 기반 브랜드 추출
-    const domain = new URL(url).hostname;
-    const brandName = extractBrandFromDomain(domain);
-    
-    // 가격 추정 (도메인별 평균 가격대)
-    const estimatedPrice = estimatePriceByDomain(domain);
-    
-    // 상품명 생성
-    const productName = generateProductName(urlAnalysis, brandName);
-    
-    console.log('분석 결과:', {
-      name: productName,
-      category: urlAnalysis.category,
-      brand: brandName,
-      price: estimatedPrice,
-      imageUrl: imageUrl
-    });
-    
-    return {
-      name: productName,
-      category: urlAnalysis.category,
-      imageUrl: imageUrl || undefined,
-      brand: brandName,
-      price: estimatedPrice
-    };
+    // AI 분석 실패 시 기본 분석
+    const fallbackAnalysis = await analyzeClothingFallback(url, imageUrl);
+    console.log('기본 분석 결과:', fallbackAnalysis);
+    return fallbackAnalysis;
     
   } catch (error) {
     console.error('의상 분석 실패:', error);
-    
-    // 기본 분석 결과 반환
-    const fallbackAnalysis = createFallbackAnalysis(url);
-    return fallbackAnalysis;
+    return createFallbackAnalysis(url);
   }
+}
+
+// AI를 사용한 의상 분석
+async function analyzeClothingWithAI(imageUrl: string, originalUrl: string): Promise<SimpleAnalysisResult | null> {
+  try {
+    if (!currentConfig.openaiApiKey) {
+      throw new Error('OpenAI API 키가 필요합니다');
+    }
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${currentConfig.openaiApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: `다음 의상 이미지를 분석해서 JSON 형식으로 답변해주세요:
+
+분석할 항목:
+1. 의상 이름 (한국어, 구체적이고 매력적으로)
+2. 카테고리 (tops, bottoms, outerwear, shoes, accessories 중 하나)
+3. 브랜드 (이미지에서 확인 가능한 경우, 없으면 "브랜드" 기본값)
+4. 예상 가격 (원화, 숫자만)
+5. 색상 (주요 색상 1-2개)
+6. 스타일 설명 (간단히)
+
+응답 형식:
+{
+  "name": "의상 이름",
+  "category": "카테고리",
+  "brand": "브랜드명",
+  "price": 가격숫자,
+  "colors": ["색상1", "색상2"],
+  "description": "스타일 설명"
+}
+
+원본 URL: ${originalUrl}`
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: imageUrl
+                }
+              }
+            ]
+          }
+        ],
+        max_tokens: 500,
+        temperature: 0.3
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`OpenAI API 오류: ${response.status}`);
+    }
+
+    const result = await response.json();
+    const aiResponse = result.choices[0]?.message?.content;
+    
+    if (!aiResponse) {
+      throw new Error('AI 응답이 없습니다');
+    }
+
+    // JSON 파싱
+    const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('JSON 형식을 찾을 수 없습니다');
+    }
+
+    const analysisData = JSON.parse(jsonMatch[0]);
+    
+    return {
+      name: analysisData.name || '분석된 의상',
+      category: analysisData.category || 'tops',
+      brand: analysisData.brand || '브랜드',
+      price: analysisData.price || 50000,
+      imageUrl: imageUrl,
+      colors: analysisData.colors || [],
+      description: analysisData.description || ''
+    };
+
+  } catch (error) {
+    console.error('AI 분석 실패:', error);
+    return null;
+  }
+}
+
+// 기본 분석 (AI 없이)
+async function analyzeClothingFallback(url: string, imageUrl?: string | null): Promise<SimpleAnalysisResult> {
+  // URL 기반 분석
+  const urlAnalysis = analyzeUrlKeywords(url);
+  
+  // 도메인 기반 브랜드 추출
+  const domain = new URL(url).hostname;
+  const brandName = extractBrandFromDomain(domain);
+  
+  // 가격 추정 (도메인별 평균 가격대)
+  const estimatedPrice = estimatePriceByDomain(domain);
+  
+  // 상품명 생성
+  const productName = generateProductName(urlAnalysis, brandName);
+  
+  return {
+    name: productName,
+    category: urlAnalysis.category,
+    imageUrl: imageUrl || undefined,
+    brand: brandName,
+    price: estimatedPrice
+  };
 }
 
 // URL 키워드 분석
