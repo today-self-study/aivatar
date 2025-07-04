@@ -5,6 +5,36 @@
 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.0.0/)를 기반으로 하며,
 이 프로젝트는 [Semantic Versioning](https://semver.org/lang/ko/)을 준수합니다.
 
+## [2.0.1] - 2024-12-19
+
+### Enhanced
+- 🖥️ **현재 화면에서 즉시 처리되는 의상 분석 시스템**
+  - iframe + html2canvas 방식으로 현재 화면에서 바로 스크린샷 캡처
+  - 새 탭 열기나 화면 공유 없이 즉시 처리 가능
+  - 다양한 프록시 서버를 통한 안정적인 페이지 접근
+  - 사용자 개입 없이 완전 자동화된 분석 프로세스
+- 🚀 **사용자 경험 대폭 개선**
+  - 자동 등록 시스템 (기본값: 활성화, 토글 가능)
+  - 단계별 분석 진행 상황 실시간 표시
+  - 현재 화면 처리 방식 안내 UI 추가
+  - 분석 중 상태를 시각적으로 표시
+- 🛡️ **다층 폴백 시스템**
+  - 1차: iframe + html2canvas (현재 화면 처리)
+  - 2차: Screen Capture API (기존 방식)
+  - 각 단계별 자동 전환으로 안정성 보장
+- 🔧 **기술적 개선**
+  - html2canvas 라이브러리 동적 로드
+  - 다중 프록시 서버 시도 로직
+  - 타임아웃 및 에러 처리 강화
+  - 메모리 누수 방지를 위한 리소스 정리
+
+### Technical Details
+- captureWithIframe() 함수로 현재 화면에서 스크린샷 캡처
+- 4가지 프록시 서버 순차 시도 (allorigins, cors-anywhere, thingproxy, 직접 접근)
+- html2canvas 1.4.1 CDN 동적 로드
+- 각 프록시당 5초 타임아웃 설정
+- 자동 등록 토글 UI 및 상태 관리 개선
+
 ## [2.0.0] - 2024-12-19
 
 ### 🚀 **혁신적인 기능 - Virtual Try-On 시스템**
