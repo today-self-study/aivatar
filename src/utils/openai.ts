@@ -700,7 +700,20 @@ async function captureWithIframe(url: string): Promise<string | null> {
               throw new Error('iframe 콘텐츠에 접근할 수 없습니다');
             }
             
-            // 페이지 로딩 대기
+            // 1단계: 기본 DOM 로딩 대기
+            console.log('1단계: DOM 로딩 대기 중...');
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            
+            // 2단계: 이미지 로딩 완료 대기
+            console.log('2단계: 이미지 로딩 완료 대기 중...');
+            await waitForImages(iframe.contentDocument);
+            
+            // 3단계: 동적 콘텐츠 로딩을 위한 스크롤 시뮬레이션
+            console.log('3단계: 지연 로딩 콘텐츠 활성화 중...');
+            await simulateScrolling(iframe.contentDocument);
+            
+            // 4단계: 최종 안정화 대기
+            console.log('4단계: 최종 안정화 대기 중...');
             await new Promise(resolve => setTimeout(resolve, 2000));
             
             const canvas = await (window as any).html2canvas(iframe.contentDocument.body, {
@@ -712,7 +725,16 @@ async function captureWithIframe(url: string): Promise<string | null> {
               scrollX: 0,
               scrollY: 0,
               backgroundColor: '#ffffff',
-              logging: false
+              logging: false,
+              onclone: (clonedDoc: Document) => {
+                // 클론된 문서에서 추가 처리
+                const images = clonedDoc.getElementsByTagName('img');
+                Array.from(images).forEach(img => {
+                  if (!img.complete || img.naturalWidth === 0) {
+                    img.style.display = 'none';
+                  }
+                });
+              }
             });
             
             const base64 = canvas.toDataURL('image/png').split(',')[1];
@@ -727,7 +749,17 @@ async function captureWithIframe(url: string): Promise<string | null> {
               throw new Error('iframe 콘텐츠에 접근할 수 없습니다');
             }
             
-            // 페이지 로딩 대기
+            // 동일한 로딩 대기 과정
+            console.log('1단계: DOM 로딩 대기 중...');
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            
+            console.log('2단계: 이미지 로딩 완료 대기 중...');
+            await waitForImages(iframe.contentDocument);
+            
+            console.log('3단계: 지연 로딩 콘텐츠 활성화 중...');
+            await simulateScrolling(iframe.contentDocument);
+            
+            console.log('4단계: 최종 안정화 대기 중...');
             await new Promise(resolve => setTimeout(resolve, 2000));
             
             const canvas = await (window as any).html2canvas(iframe.contentDocument.body, {
@@ -739,7 +771,15 @@ async function captureWithIframe(url: string): Promise<string | null> {
               scrollX: 0,
               scrollY: 0,
               backgroundColor: '#ffffff',
-              logging: false
+              logging: false,
+              onclone: (clonedDoc: Document) => {
+                const images = clonedDoc.getElementsByTagName('img');
+                Array.from(images).forEach(img => {
+                  if (!img.complete || img.naturalWidth === 0) {
+                    img.style.display = 'none';
+                  }
+                });
+              }
             });
             
             const base64 = canvas.toDataURL('image/png').split(',')[1];
@@ -764,18 +804,113 @@ async function captureWithIframe(url: string): Promise<string | null> {
         resolve(null);
       };
       
-      // 타임아웃 설정 (기존 커밋과 동일한 10초)
+      // 타임아웃 설정 (로딩 시간을 고려하여 20초로 증가)
       setTimeout(() => {
         if (document.body.contains(iframe)) {
           console.warn('iframe 로딩 타임아웃');
           document.body.removeChild(iframe);
           resolve(null);
         }
-      }, 10000);
+      }, 20000);
       
     } catch (error) {
       console.error('iframe 생성 실패:', error);
       resolve(null);
+    }
+  });
+}
+
+// 이미지 로딩 완료 대기 함수
+async function waitForImages(doc: Document): Promise<void> {
+  return new Promise((resolve) => {
+    const images = Array.from(doc.getElementsByTagName('img'));
+    
+    if (images.length === 0) {
+      resolve();
+      return;
+    }
+    
+    let loadedCount = 0;
+    const totalImages = images.length;
+    
+    const checkComplete = () => {
+      loadedCount++;
+      if (loadedCount >= totalImages) {
+        console.log(`모든 이미지 로딩 완료 (${totalImages}개)`);
+        resolve();
+      }
+    };
+    
+    images.forEach((img, index) => {
+      if (img.complete && img.naturalWidth > 0) {
+        checkComplete();
+      } else {
+        img.onload = checkComplete;
+        img.onerror = checkComplete; // 에러가 나도 계속 진행
+        
+        // 개별 이미지 타임아웃 (5초)
+        setTimeout(() => {
+          console.warn(`이미지 ${index + 1} 로딩 타임아웃`);
+          checkComplete();
+        }, 5000);
+      }
+    });
+    
+    // 전체 이미지 로딩 타임아웃 (10초)
+    setTimeout(() => {
+      console.warn('이미지 로딩 전체 타임아웃');
+      resolve();
+    }, 10000);
+  });
+}
+
+// 스크롤 시뮬레이션으로 지연 로딩 콘텐츠 활성화
+async function simulateScrolling(doc: Document): Promise<void> {
+  return new Promise((resolve) => {
+    try {
+      const window = doc.defaultView;
+      if (!window) {
+        resolve();
+        return;
+      }
+      
+      let scrollPosition = 0;
+      const scrollStep = 200;
+      const maxScroll = Math.max(
+        doc.body.scrollHeight,
+        doc.documentElement.scrollHeight
+      );
+      
+      const scrollInterval = setInterval(() => {
+        scrollPosition += scrollStep;
+        window.scrollTo(0, scrollPosition);
+        
+        if (scrollPosition >= maxScroll) {
+          clearInterval(scrollInterval);
+          // 스크롤을 맨 위로 되돌림
+          window.scrollTo(0, 0);
+          
+          // 스크롤 후 안정화 대기
+          setTimeout(() => {
+            console.log('스크롤 시뮬레이션 완료');
+            resolve();
+          }, 1000);
+        }
+      }, 100);
+      
+      // 스크롤 시뮬레이션 타임아웃 (5초)
+      setTimeout(() => {
+        clearInterval(scrollInterval);
+        if (window) {
+          window.scrollTo(0, 0);
+        }
+        console.warn('스크롤 시뮬레이션 타임아웃');
+        resolve();
+      }, 5000);
+      
+    } catch (error) {
+      console.error('스크롤 시뮬레이션 오류:', error);
+      resolve();
     }
   });
 }

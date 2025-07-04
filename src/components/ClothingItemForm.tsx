@@ -28,12 +28,12 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
     setAnalysisStatus('');
 
     try {
-      // iframe 스크린샷 기능 안내
-      toast.success('페이지 스크린샷을 촬영하여 AI 분석을 시작합니다', { duration: 3000 });
+      // 개선된 스크린샷 기능 안내
+      toast.success('완전한 페이지 로딩을 위해 충분히 기다린 후 스크린샷을 촬영합니다', { duration: 4000 });
 
       const { analyzeClothingFromUrl } = await import('../utils/openai');
 
-      setAnalysisStatus('페이지 스크린샷 촬영 중...');
+      setAnalysisStatus('페이지 완전 로딩 대기 중... (약 10-15초 소요)');
       
       const result = await analyzeClothingFromUrl(url);
 
@@ -153,11 +153,15 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
         <div className="mb-4 p-3 bg-green-50 rounded-lg border border-green-200">
           <div className="flex items-center gap-2 text-green-700">
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="text-sm font-medium">📸 스크린샷 전용 AI 분석</span>
+            <span className="text-sm font-medium">📸 완전 로딩 기반 스크린샷 분석</span>
           </div>
           <p className="text-xs text-green-600 mt-1">
-            페이지 스크린샷 → GPT-4o Vision 직접 분석 → 화면 텍스트만 추출 ✨
+            DOM 로딩 → 이미지 로딩 → 지연 콘텐츠 활성화 → 스크린샷 → AI 분석 ✨
           </p>
+          <div className="text-xs text-green-500 mt-1 flex items-center gap-1">
+            <span>⏱️</span>
+            <span>처리 시간: 10-20초 (완전한 페이지 로딩 보장)</span>
+          </div>
         </div>
 
         {/* URL 입력 */}
@@ -203,13 +207,17 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
           <div className="mt-4 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin"></div>
-              <span className="text-green-700 font-medium">📸 스크린샷 전용 AI 분석</span>
+              <span className="text-green-700 font-medium">📸 완전 로딩 기반 스크린샷 분석</span>
             </div>
             <div className="text-sm text-green-600 mb-2">
               {analysisStatus}
             </div>
-            <div className="text-xs text-green-500">
-              ✨ 페이지 스크린샷만 GPT-4o Vision에 전달하여 분석
+            <div className="text-xs text-green-500 space-y-1">
+              <div>✅ 1단계: DOM 완전 로딩 대기 (3초)</div>
+              <div>✅ 2단계: 모든 이미지 로딩 완료 대기</div>
+              <div>✅ 3단계: 지연 로딩 콘텐츠 활성화 (스크롤)</div>
+              <div>✅ 4단계: 최종 안정화 후 스크린샷 촬영</div>
+              <div>🤖 GPT-4o Vision으로 화면 직접 분석</div>
             </div>
           </div>
         )}
