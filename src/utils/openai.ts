@@ -645,29 +645,30 @@ export async function analyzeClothingFromUrl(url: string): Promise<SimpleAnalysi
   }
 }
 
-// 페이지 스크린샷을 찍어서 분석하는 함수
+// 페이지 스크린샷 캡처 (iframe 방식만 사용)
 async function capturePageScreenshot(url: string): Promise<string | null> {
   try {
     console.log('페이지 스크린샷 캡처 시작:', url);
     
-    // iframe + html2canvas 방식 (현재 화면에서 처리)
-    try {
-      console.log('iframe + html2canvas 방식으로 스크린샷 캡처 시도');
-      const screenshotBase64 = await captureWithIframe(url);
-      if (screenshotBase64) {
-        console.log('iframe 방식 스크린샷 캡처 성공');
-        return screenshotBase64;
-      }
-    } catch (error) {
-      console.warn('iframe 방식 실패:', error);
+    // html2canvas 라이브러리 동적 로드
+    if (!(window as any).html2canvas) {
+      console.log('html2canvas 라이브러리 로드 중...');
+      await loadHtml2Canvas();
     }
     
-    // 모든 방법 실패 시 null 반환
-    console.log('스크린샷 캡처 실패 - 기존 이미지 추출 방식으로 전환');
-    return null;
+    // iframe을 사용한 스크린샷 캡처
+    const screenshotBase64 = await captureWithIframe(url);
+    
+    if (screenshotBase64) {
+      console.log('iframe 스크린샷 캡처 성공');
+      return screenshotBase64;
+    } else {
+      console.log('iframe 스크린샷 캡처 실패');
+      return null;
+    }
     
   } catch (error) {
-    console.error('스크린샷 캡처 실패:', error);
+    console.error('스크린샷 캡처 중 오류:', error);
     return null;
   }
 }
@@ -678,117 +679,99 @@ async function captureWithIframe(url: string): Promise<string | null> {
     try {
       console.log('iframe 방식 스크린샷 캡처 시작:', url);
       
-      // 숨겨진 iframe 생성
+      // iframe 생성 (기존 커밋과 동일한 방식)
       const iframe = document.createElement('iframe');
-      iframe.style.position = 'fixed';
-      iframe.style.top = '-9999px';
-      iframe.style.left = '-9999px';
+      iframe.src = url;
       iframe.style.width = '1200px';
       iframe.style.height = '800px';
+      iframe.style.position = 'absolute';
+      iframe.style.left = '-9999px';
+      iframe.style.top = '-9999px';
       iframe.style.border = 'none';
-      iframe.style.zIndex = '-1000';
       iframe.style.visibility = 'hidden';
       
-      // 다양한 프록시 서버 시도
-      const proxyUrls = [
-        // 1. 직접 접근 시도 (동일 도메인이거나 CORS 허용된 경우)
-        url,
-        // 2. 다양한 프록시 서버들
-        `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-        `https://cors-anywhere.herokuapp.com/${url}`,
-        `https://thingproxy.freeboard.io/fetch/${url}`,
-        `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
-        `https://yacdn.org/proxy/${url}`,
-        // 3. 백업 프록시들
-        `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
-        `https://jsonp.afeld.me/?url=${encodeURIComponent(url)}`
-      ];
+      document.body.appendChild(iframe);
       
-      let currentProxyIndex = 0;
-      
-      const tryNextProxy = () => {
-        if (currentProxyIndex >= proxyUrls.length) {
-          console.log('모든 프록시 시도 실패');
-          if (document.body.contains(iframe)) {
-            document.body.removeChild(iframe);
-          }
-          resolve(null);
-          return;
-        }
-        
-        const proxyUrl = proxyUrls[currentProxyIndex];
-        console.log(`프록시 시도 ${currentProxyIndex + 1}/${proxyUrls.length}:`, proxyUrl);
-        
-        iframe.onload = async () => {
-          try {
-            // html2canvas 동적 로드
-            if (!(window as any).html2canvas) {
-              await loadHtml2Canvas();
+      iframe.onload = async () => {
+        try {
+          // html2canvas가 있다면 사용 (없으면 에러)
+          if (typeof (window as any).html2canvas !== 'undefined') {
+            if (!iframe.contentDocument?.body) {
+              throw new Error('iframe 콘텐츠에 접근할 수 없습니다');
             }
             
-            // iframe 내용 확인
-            const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-            if (!iframeDoc || !iframeDoc.body) {
-              console.warn('iframe 내용 없음, 다음 프록시 시도');
-              currentProxyIndex++;
-              tryNextProxy();
-              return;
-            }
+            // 페이지 로딩 대기
+            await new Promise(resolve => setTimeout(resolve, 2000));
             
-            // 페이지 로딩 대기 (단축)
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            // iframe 내용 캡처
-            const canvas = await (window as any).html2canvas(iframeDoc.body, {
+            const canvas = await (window as any).html2canvas(iframe.contentDocument.body, {
               allowTaint: true,
               useCORS: true,
-              scale: 0.6, // 더 빠른 처리를 위해 스케일 감소
+              scale: 0.8,
               width: 1200,
               height: 800,
               scrollX: 0,
               scrollY: 0,
               backgroundColor: '#ffffff',
-              logging: false, // 로깅 비활성화로 성능 향상
-              removeContainer: true
+              logging: false
             });
             
-            // 캔버스를 Base64로 변환
-            const base64 = canvas.toDataURL('image/png', 0.7); // 품질 약간 감소로 속도 향상
-            
-            // iframe 제거
+            const base64 = canvas.toDataURL('image/png').split(',')[1];
             document.body.removeChild(iframe);
-            
             console.log('iframe 스크린샷 캡처 성공');
-            resolve(base64);
+            resolve(`data:image/png;base64,${base64}`);
+          } else {
+            // html2canvas 동적 로드 시도
+            await loadHtml2Canvas();
             
-          } catch (error) {
-            console.error(`프록시 ${currentProxyIndex + 1} 캡처 실패:`, error);
-            currentProxyIndex++;
-            tryNextProxy();
+            if (!iframe.contentDocument?.body) {
+              throw new Error('iframe 콘텐츠에 접근할 수 없습니다');
+            }
+            
+            // 페이지 로딩 대기
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            const canvas = await (window as any).html2canvas(iframe.contentDocument.body, {
+              allowTaint: true,
+              useCORS: true,
+              scale: 0.8,
+              width: 1200,
+              height: 800,
+              scrollX: 0,
+              scrollY: 0,
+              backgroundColor: '#ffffff',
+              logging: false
+            });
+            
+            const base64 = canvas.toDataURL('image/png').split(',')[1];
+            document.body.removeChild(iframe);
+            console.log('iframe 스크린샷 캡처 성공 (html2canvas 동적 로드)');
+            resolve(`data:image/png;base64,${base64}`);
           }
-        };
-        
-        iframe.onerror = () => {
-          console.error(`프록시 ${currentProxyIndex + 1} 로드 실패`);
-          currentProxyIndex++;
-          tryNextProxy();
-        };
-        
-        // 타임아웃 설정 (각 프록시당 3초로 단축)
-        setTimeout(() => {
+        } catch (error) {
+          console.error('iframe 캡처 실패:', error);
           if (document.body.contains(iframe)) {
-            console.warn(`프록시 ${currentProxyIndex + 1} 타임아웃`);
-            currentProxyIndex++;
-            tryNextProxy();
+            document.body.removeChild(iframe);
           }
-        }, 3000);
-        
-        iframe.src = proxyUrl;
+          resolve(null);
+        }
       };
       
-      // iframe을 DOM에 추가하고 첫 번째 프록시 시도
-      document.body.appendChild(iframe);
-      tryNextProxy();
+      iframe.onerror = () => {
+        console.error('iframe 로딩 실패');
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
+        }
+        resolve(null);
+      };
+      
+      // 타임아웃 설정 (기존 커밋과 동일한 10초)
+      setTimeout(() => {
+        if (document.body.contains(iframe)) {
+          console.warn('iframe 로딩 타임아웃');
+          document.body.removeChild(iframe);
+          resolve(null);
+        }
+      }, 10000);
       
     } catch (error) {
       console.error('iframe 생성 실패:', error);

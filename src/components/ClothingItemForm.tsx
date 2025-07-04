@@ -20,46 +20,48 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
   // URL 분석 및 자동 등록
   const handleAnalyze = async () => {
     if (!url.trim()) {
-      toast.error('URL을 입력해주세요')
-      return
+      toast.error('URL을 입력해주세요');
+      return;
     }
 
-    setIsAnalyzing(true)
-    setAnalysisStatus('🔍 AI 분석 시작 중...')
+    setIsAnalyzing(true);
+    setAnalysisStatus('');
 
     try {
-      console.log('의상 분석 시작:', url)
+      // iframe 스크린샷 기능 안내
+      toast.success('페이지 스크린샷을 촬영하여 AI 분석을 시작합니다', { duration: 3000 });
+
+      const { analyzeClothingFromUrl } = await import('../utils/openai');
+
+      setAnalysisStatus('페이지 스크린샷 촬영 중...');
       
-      // 단계별 상태 업데이트
-      setAnalysisStatus('📄 페이지 정보 가져오는 중...')
-      await new Promise(resolve => setTimeout(resolve, 300))
-      
-      setAnalysisStatus('🖼️ 자동으로 이미지 캡처 중...')
-      await new Promise(resolve => setTimeout(resolve, 300))
-      
-      setAnalysisStatus('🤖 AI가 의상을 분석하는 중...')
-      const result = await analyzeClothingFromUrl(url)
-      
-      setAnalysisStatus('✅ 분석 완료!')
-      setAnalysisResult(result)
-      console.log('분석 결과:', result)
-      
-      // 자동 등록이 활성화된 경우 1초 후 자동 등록
-      if (autoRegister) {
-        setAnalysisStatus('🚀 자동 등록 중...')
-        await new Promise(resolve => setTimeout(resolve, 1000))
-        await addPreviewItemAutomatically()
+      const result = await analyzeClothingFromUrl(url);
+
+      if (result) {
+        console.log('✅ AI 분석 성공:', result);
+        setAnalysisResult(result);
+        setAnalysisStatus('분석 완료! 상품 정보를 확인해주세요');
+        toast.success('AI 분석이 완료되었습니다!', { duration: 3000 });
+
+        // 자동 등록이 활성화된 경우 1초 후 자동 등록
+        if (autoRegister) {
+          setTimeout(() => {
+            addPreviewItemAutomatically();
+          }, 1000);
+        }
+      } else {
+        console.log('❌ AI 분석 실패');
+        setAnalysisStatus('분석 실패');
+        toast.error('AI 분석에 실패했습니다. 다시 시도해주세요.');
       }
-      
     } catch (error) {
-      console.error('분석 실패:', error)
-      setAnalysisStatus('❌ 분석 실패')
-      toast.error('분석에 실패했습니다. 다시 시도해주세요.')
+      console.error('❌ 분석 오류:', error);
+      setAnalysisStatus('분석 중 오류 발생');
+      toast.error('분석 중 오류가 발생했습니다. 다시 시도해주세요.');
     } finally {
-      setIsAnalyzing(false)
-      setTimeout(() => setAnalysisStatus(''), 2000)
+      setIsAnalyzing(false);
     }
-  }
+  };
 
   // 의상 목록에 추가
   const addToClothingList = (result: SimpleAnalysisResult, url: string) => {
