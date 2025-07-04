@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { Plus, Sparkles, ExternalLink, ShoppingBag } from 'lucide-react';
+import { Sparkles, ExternalLink, ShoppingBag } from 'lucide-react';
 import { cn, generateId } from '../utils';
-import { analyzeClothingFromUrl } from '../utils/openai';
 import type { ClothingItem, ClothingCategoryType, SimpleAnalysisResult } from '../types';
 
 interface ClothingItemFormProps {
@@ -12,7 +11,7 @@ interface ClothingItemFormProps {
 const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
   const [url, setUrl] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [previewItem, setPreviewItem] = useState<SimpleAnalysisResult | null>(null);
+
   const [analysisStatus, setAnalysisStatus] = useState('');
   const [analysisResult, setAnalysisResult] = useState<SimpleAnalysisResult | null>(null);
   const [autoRegister, setAutoRegister] = useState(true);
@@ -83,7 +82,6 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
     };
 
     onAddItem(newItem);
-    setPreviewItem(null);
     setUrl('');
     toast.success(`🎉 "${result.name}"이(가) 의상 목록에 추가되었습니다!`);
   };
@@ -99,7 +97,6 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
   const addPreviewItemAutomatically = async () => {
     if (analysisResult) {
       addToClothingList(analysisResult, url);
-      setPreviewItem(null);
       setUrl('');
     }
   };
@@ -204,20 +201,26 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
 
         {/* 분석 중 상태 표시 */}
         {isAnalyzing && (
-          <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-200">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-              <span className="text-blue-700 font-medium">📄 HTML 직접 분석</span>
+          <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-center space-x-2">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+              <span className="text-blue-800 font-medium">
+                📄 HTML 콘텐츠 직접 분석 중...
+              </span>
             </div>
-            <div className="text-sm text-blue-600 mb-2">
-              {analysisStatus}
-            </div>
-            <div className="text-xs text-blue-500 space-y-1">
-              <div>✅ 1단계: 페이지 HTML 콘텐츠 페치</div>
-              <div>✅ 2단계: 메타태그 정보 추출</div>
-              <div>✅ 3단계: JSON 구조화 데이터 파싱</div>
-              <div>✅ 4단계: 상품 정보 종합 분석</div>
-              <div>🤖 GPT-4o로 HTML 콘텐츠 직접 분석</div>
+            <div className="mt-2 text-sm text-blue-600">
+              <div className="space-y-1">
+                <div>✅ 1단계: URL 페이지 HTML 페치</div>
+                <div>🔄 2단계: 프록시 서버를 통한 CORS 우회</div>
+                <div>🤖 3단계: OpenAI API로 메타태그 및 구조화 데이터 분석</div>
+                <div>📊 4단계: 상품 정보 추출 및 정리</div>
+              </div>
+              <div className="mt-2 text-xs text-blue-500">
+                처리 시간: 5-10초 (네트워크 상태에 따라 변동)
+              </div>
+              <div className="mt-1 text-xs text-blue-500">
+                💡 개발자 도구 Network 탭에서 프록시 서버 및 OpenAI API 호출을 확인할 수 있습니다.
+              </div>
             </div>
           </div>
         )}

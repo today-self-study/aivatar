@@ -602,9 +602,18 @@ class VirtualTryOnGenerator implements VirtualTryOnGeneration {
 
 // HTML 응답을 직접 분석하는 함수
 async function analyzeHTMLContent(htmlContent: string): Promise<SimpleAnalysisResult> {
+  console.log('🤖 OpenAI API 호출 시작 - HTML 콘텐츠 분석');
+  console.log('📊 현재 AI 설정:', currentConfig);
+  
   const openai = getOpenAI();
   
   try {
+    console.log('🔑 OpenAI 클라이언트 생성 성공');
+    console.log('📝 분석할 HTML 길이:', htmlContent.length, '자');
+    
+    const truncatedContent = htmlContent.substring(0, 15000); // 토큰 제한 고려
+    console.log('✂️ 토큰 제한으로 HTML 콘텐츠 자르기:', truncatedContent.length, '자');
+    
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
@@ -637,28 +646,37 @@ async function analyzeHTMLContent(htmlContent: string): Promise<SimpleAnalysisRe
         },
         {
           role: "user",
-          content: `다음 HTML 콘텐츠를 분석해서 의류 상품 정보를 추출해주세요:\n\n${htmlContent.substring(0, 15000)}` // 토큰 제한 고려
+          content: `다음 HTML 콘텐츠를 분석해서 의류 상품 정보를 추출해주세요:\n\n${truncatedContent}`
         }
       ],
       max_tokens: 2000,
       temperature: 0.1
     });
 
+    console.log('✅ OpenAI API 호출 성공');
+    console.log('📋 OpenAI 응답:', response);
+
     const content = response.choices[0]?.message?.content;
     if (!content) {
       throw new Error('OpenAI API 응답이 비어있습니다.');
     }
 
+    console.log('💬 OpenAI 응답 내용:', content);
+
     // JSON 응답 파싱
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
+      console.error('❌ JSON 형식을 찾을 수 없는 응답:', content);
       throw new Error('응답에서 JSON 형식을 찾을 수 없습니다.');
     }
 
+    console.log('🔍 추출된 JSON 문자열:', jsonMatch[0]);
+
     const analysisResult = JSON.parse(jsonMatch[0]);
+    console.log('📊 파싱된 분석 결과:', analysisResult);
     
     // SimpleAnalysisResult 형식으로 변환
-    return {
+    const result = {
       name: analysisResult.name || '상품명 미확인',
       category: analysisResult.category || '기타',
       imageUrl: analysisResult.imageUrl || undefined,
@@ -670,8 +688,15 @@ async function analyzeHTMLContent(htmlContent: string): Promise<SimpleAnalysisRe
       fit: analysisResult.fit || '',
       description: analysisResult.description || ''
     };
+    
+    console.log('🎯 최종 변환된 결과:', result);
+    return result;
   } catch (error) {
-    console.error('HTML 분석 중 오류 발생:', error);
+    console.error('❌ HTML 분석 중 오류 발생:', error);
+    if (error instanceof Error) {
+      console.error('오류 메시지:', error.message);
+      console.error('오류 스택:', error.stack);
+    }
     throw new Error(`HTML 분석 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
   }
 }
@@ -679,31 +704,71 @@ async function analyzeHTMLContent(htmlContent: string): Promise<SimpleAnalysisRe
 // URL에서 HTML을 가져와서 분석하는 함수
 async function fetchAndAnalyzeHTML(url: string): Promise<SimpleAnalysisResult> {
   try {
-    console.log('HTML 페치 및 분석 시작:', url);
+    console.log('🔍 HTML 페치 및 분석 시작:', url);
     
-    // CORS 우회를 위한 프록시 사용
-    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+    // 여러 프록시 서버 시도
+    const proxyServers = [
+      'https://api.allorigins.win/raw?url=',
+      'https://cors-anywhere.herokuapp.com/',
+      'https://api.codetabs.com/v1/proxy?quest='
+    ];
     
-    const response = await fetch(proxyUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    let htmlContent = '';
+    let lastError = null;
+    
+    for (let i = 0; i < proxyServers.length; i++) {
+      const proxyUrl = proxyServers[i] + encodeURIComponent(url);
+      console.log(`📡 프록시 서버 ${i + 1}/${proxyServers.length} 시도:`, proxyUrl);
+      
+      try {
+        // AbortController로 타임아웃 구현
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10초 타임아웃
+        
+        const response = await fetch(proxyUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+          },
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        htmlContent = await response.text();
+        console.log('✅ HTML 콘텐츠 페치 성공, 길이:', htmlContent.length);
+        
+        if (htmlContent.length > 100) { // 최소한의 콘텐츠가 있는지 확인
+          break;
+        } else {
+          console.warn('⚠️ HTML 콘텐츠가 너무 짧음, 다음 프록시 시도');
+          continue;
+        }
+      } catch (error) {
+        console.warn(`❌ 프록시 서버 ${i + 1} 실패:`, error);
+        lastError = error;
+        continue;
       }
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
-
-    const htmlContent = await response.text();
-    console.log('HTML 콘텐츠 페치 성공, 길이:', htmlContent.length);
     
-    // HTML 콘텐츠 분석
+    if (!htmlContent || htmlContent.length < 100) {
+      throw new Error(`모든 프록시 서버에서 HTML 페치 실패. 마지막 오류: ${lastError}`);
+    }
+    
+    console.log('📋 HTML 콘텐츠 분석 시작 - OpenAI API 호출 예정');
+    console.log('📊 분석할 HTML 콘텐츠 미리보기:', htmlContent.substring(0, 500) + '...');
+    
+    // HTML 콘텐츠 분석 - OpenAI API 호출
     const result = await analyzeHTMLContent(htmlContent);
     result.originalUrl = url;
     
+    console.log('🎯 HTML 분석 완료:', result);
     return result;
   } catch (error) {
-    console.error('HTML 페치 및 분석 중 오류 발생:', error);
+    console.error('❌ HTML 페치 및 분석 중 오류 발생:', error);
     throw new Error(`페이지 분석 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
   }
 }

@@ -11,9 +11,9 @@ import SettingsForm from './components/SettingsForm'
 import { initializeSimpleGenerator, updateAIConfig, type AIApiConfig } from './utils/openai'
 import type { 
   ClothingItem, 
-  OutfitGeneration, 
   Gender, 
-  BodyType
+  BodyType,
+  UserProfile
 } from './types'
 
 // 4단계 플로우: API 설정 → 의상 추가 → 프로필 설정 → 코디 생성
@@ -22,7 +22,7 @@ type AppStep = 'api-setup' | 'add-clothes' | 'profile' | 'generate'
 function App() {
   // 상태 관리
   const [currentStep, setCurrentStep] = useState<AppStep>('api-setup')
-  const [clothingItems, setClothingItems] = useLocalStorage<ClothingItem[]>('clothing-items', [])
+  const [clothingItems, setClothingItems] = useLocalStorage<ClothingItem[]>('clothingItems', [])
   const [selectedGender, setSelectedGender] = useState<Gender | null>(null)
   const [selectedBodyType, setSelectedBodyType] = useState<BodyType | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -33,7 +33,15 @@ function App() {
   const [aiConfig, setAiConfig] = useLocalStorage<AIApiConfig>('ai-api-config', { useAI: false })
 
   // 로컬 스토리지에서 프로필 정보 로드
-  const [profileData] = useLocalStorage<{ gender?: string; bodyType?: string }>('user-profile', {})
+  const [userProfile, setUserProfile] = useLocalStorage<UserProfile>('userProfile', {
+    gender: 'male',
+    bodyType: 'regular' as BodyType,
+    preferences: {
+      styles: [],
+      colors: [],
+      priceRange: [0, 100000]
+    }
+  })
 
   // 초기화 함수
   React.useEffect(() => {
@@ -42,18 +50,18 @@ function App() {
     initializeSimpleGenerator()
     
     // 저장된 프로필 데이터가 있으면 로드
-    if (profileData?.gender) {
-      setSelectedGender(profileData.gender as Gender)
+    if (userProfile?.gender) {
+      setSelectedGender(userProfile.gender as Gender)
     }
-    if (profileData?.bodyType) {
-      setSelectedBodyType(profileData.bodyType as any)
+    if (userProfile?.bodyType) {
+      setSelectedBodyType(userProfile.bodyType as any)
     }
     
     // API 키가 설정되어 있으면 의상 추가 단계로 이동
     if (aiConfig.openaiApiKey && currentStep === 'api-setup') {
       setCurrentStep('add-clothes')
     }
-  }, [profileData, aiConfig])
+  }, [userProfile, aiConfig])
 
   // AI 설정 완료 핸들러
   const handleAIConfigComplete = (config: AIApiConfig) => {
