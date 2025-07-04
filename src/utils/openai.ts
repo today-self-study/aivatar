@@ -616,8 +616,8 @@ async function analyzeHTMLContent(htmlContent: string): Promise<SimpleAnalysisRe
     
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
-      messages: [
-        {
+        messages: [
+          {
           role: "system",
           content: `당신은 의류 상품 정보를 분석하는 전문가입니다. 
           주어진 HTML 콘텐츠에서 의류 상품의 정보를 추출하여 JSON 형태로 반환해주세요.
@@ -656,10 +656,10 @@ async function analyzeHTMLContent(htmlContent: string): Promise<SimpleAnalysisRe
     console.log('✅ OpenAI API 호출 성공');
     console.log('📋 OpenAI 응답:', response);
 
-    const content = response.choices[0]?.message?.content;
-    if (!content) {
-      throw new Error('OpenAI API 응답이 비어있습니다.');
-    }
+      const content = response.choices[0]?.message?.content;
+      if (!content) {
+        throw new Error('OpenAI API 응답이 비어있습니다.');
+      }
 
     console.log('💬 OpenAI 응답 내용:', content);
 
@@ -785,57 +785,59 @@ function getOpenAI() {
   });
 }
 
-// AI 기반 의상 분석 함수 (HTML 직접 분석 우선)
+// AI 기반 의상 분석 함수 (OpenAI API 전용)
 export async function analyzeClothingFromUrl(url: string): Promise<SimpleAnalysisResult> {
   try {
-    console.log('🔍 AI 의상 URL 분석 시작 (HTML 직접 분석):', url);
+    console.log('🔍 AI 의상 URL 분석 시작 (OpenAI API 전용):', url);
     console.log('현재 AI 설정:', currentConfig);
     
-    // AI 설정이 활성화되어 있으면 HTML 직접 분석 시도
-    if (currentConfig.useAI && currentConfig.openaiApiKey) {
-      console.log('✅ AI 분석 조건 만족 - HTML 직접 분석 시도');
-      
-      // HTML 직접 분석 시도 (1순위)
-      try {
-        const htmlResult = await fetchAndAnalyzeHTML(url);
-        console.log('🎯 HTML 직접 분석 성공:', htmlResult);
-        return htmlResult;
-      } catch (error) {
-        console.warn('❌ HTML 직접 분석 실패 - 스크린샷 분석으로 전환:', error);
-      }
-      
-      // 스크린샷 기반 AI 분석 시도 (2순위 - 백업)
-      try {
-        const screenshotResult = await analyzeClothingWithScreenshot(url);
-        if (screenshotResult) {
-          console.log('🎯 스크린샷 기반 AI 분석 성공:', screenshotResult);
-          return screenshotResult;
-        } else {
-          console.log('⚠️ 스크린샷 기반 분석 실패 - 기본 분석으로 전환');
-        }
-      } catch (error) {
-        console.warn('❌ 스크린샷 분석 오류 - 기본 분석으로 전환:', error);
-      }
-    } else {
-      console.log('❌ AI 분석 조건 미충족:', {
-        useAI: currentConfig.useAI,
-        hasApiKey: !!currentConfig.openaiApiKey
-      });
+    // OpenAI API 키 확인 - 필수 조건
+    if (!currentConfig.openaiApiKey) {
+      throw new Error('❌ OpenAI API 키가 설정되지 않았습니다. 설정 페이지에서 API 키를 입력해주세요.');
     }
-
-    // AI 분석이 실패했거나 사용하지 않는 경우 기본 분석
-    console.log('📋 기본 분석으로 전환 (AI 분석 불가)');
-    const generator = getVirtualTryOnGenerator();
-    const imageUrl = await generator.extractImageFromUrl(url);
     
-    if (imageUrl) {
-      return await analyzeClothingFallback(url, imageUrl);
-    } else {
-      return await createFallbackAnalysis(url);
+    if (!currentConfig.useAI) {
+      throw new Error('❌ AI 분석이 비활성화되어 있습니다. 설정 페이지에서 AI 분석을 활성화해주세요.');
     }
+    
+    console.log('✅ OpenAI API 설정 확인 완료 - 분석 시작');
+    
+    // HTML 직접 분석 시도 (1순위 - OpenAI API 사용)
+    try {
+      console.log('🔄 1단계: HTML 직접 분석 시도 (OpenAI API)');
+      const htmlResult = await fetchAndAnalyzeHTML(url);
+      console.log('🎯 HTML 직접 분석 성공:', htmlResult);
+      return htmlResult;
+    } catch (error) {
+      console.warn('❌ HTML 직접 분석 실패:', error);
+      console.log('🔄 2단계: 스크린샷 기반 분석으로 전환 (OpenAI API)');
+    }
+    
+    // 스크린샷 기반 AI 분석 시도 (2순위 - OpenAI API 사용)
+    try {
+      const screenshotResult = await analyzeClothingWithScreenshot(url);
+      if (screenshotResult) {
+        console.log('🎯 스크린샷 기반 AI 분석 성공:', screenshotResult);
+        return screenshotResult;
+      } else {
+        throw new Error('스크린샷 분석에서 결과를 얻지 못했습니다.');
+      }
+    } catch (error) {
+      console.error('❌ 스크린샷 분석 실패:', error);
+    }
+    
+    // 모든 OpenAI API 기반 분석이 실패한 경우
+    throw new Error('❌ 모든 AI 분석 방법이 실패했습니다. 네트워크 상태를 확인하거나 다른 URL을 시도해주세요.');
+    
   } catch (error) {
-    console.error('❌ 의상 분석 실패:', error);
-    return createFallbackAnalysis(url);
+    console.error('❌ AI 의상 분석 완전 실패:', error);
+    
+    // 에러 메시지를 사용자에게 명확히 전달
+    if (error instanceof Error) {
+      throw error; // 원본 에러 메시지 유지
+    } else {
+      throw new Error('❌ 알 수 없는 오류가 발생했습니다. OpenAI API 키와 네트워크 상태를 확인해주세요.');
+    }
   }
 }
 
@@ -1299,7 +1301,7 @@ async function analyzeClothingWithScreenshot(url: string): Promise<SimpleAnalysi
     console.log('🎯 스크린샷 전용 AI 분석 성공:', result_data);
     return result_data;
 
-  } catch (error) {
+    } catch (error) {
     console.error('스크린샷 기반 AI 분석 실패:', error);
     return null;
   }
@@ -1458,7 +1460,7 @@ async function analyzeClothingWithAI(imageUrl: string, originalUrl: string): Pro
       return await tryAlternativeAnalysis(imageUrl, originalUrl);
     }
 
-  } catch (error) {
+    } catch (error) {
     console.error('AI 분석 실패:', error);
     return await tryAlternativeAnalysis(imageUrl, originalUrl);
   }
@@ -1543,7 +1545,7 @@ async function tryAlternativeAnalysis(imageUrl: string, originalUrl: string): Pr
         }
       }
     }
-  } catch (error) {
+    } catch (error) {
     console.error('대체 분석 실패:', error);
   }
   

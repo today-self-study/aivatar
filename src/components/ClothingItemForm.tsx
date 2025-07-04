@@ -27,20 +27,20 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
     setAnalysisStatus('');
 
     try {
-      // 개선된 스크린샷 기능 안내
-      toast.success('완전한 페이지 로딩을 위해 충분히 기다린 후 스크린샷을 촬영합니다', { duration: 4000 });
+      // OpenAI API 기반 분석 안내
+      toast.success('OpenAI API를 사용하여 상품 정보를 분석합니다', { duration: 3000 });
 
       const { analyzeClothingFromUrl } = await import('../utils/openai');
 
-      setAnalysisStatus('페이지 완전 로딩 대기 중... (약 10-15초 소요)');
+      setAnalysisStatus('OpenAI API 분석 중... (HTML 또는 스크린샷 기반)');
       
       const result = await analyzeClothingFromUrl(url);
 
       if (result) {
-        console.log('✅ AI 분석 성공:', result);
+        console.log('✅ OpenAI API 분석 성공:', result);
         setAnalysisResult(result);
-        setAnalysisStatus('분석 완료! 상품 정보를 확인해주세요');
-        toast.success('AI 분석이 완료되었습니다!', { duration: 3000 });
+        setAnalysisStatus('OpenAI API 분석 완료! 상품 정보를 확인해주세요');
+        toast.success('🎯 OpenAI API 분석이 완료되었습니다!', { duration: 3000 });
 
         // 자동 등록이 활성화된 경우 1초 후 자동 등록
         if (autoRegister) {
@@ -49,14 +49,29 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
           }, 1000);
         }
       } else {
-        console.log('❌ AI 분석 실패');
-        setAnalysisStatus('분석 실패');
-        toast.error('AI 분석에 실패했습니다. 다시 시도해주세요.');
+        console.log('❌ OpenAI API 분석 실패 - 결과 없음');
+        setAnalysisStatus('OpenAI API 분석 실패');
+        toast.error('❌ OpenAI API 분석에 실패했습니다. API 키를 확인해주세요.');
       }
     } catch (error) {
-      console.error('❌ 분석 오류:', error);
-      setAnalysisStatus('분석 중 오류 발생');
-      toast.error('분석 중 오류가 발생했습니다. 다시 시도해주세요.');
+      console.error('❌ OpenAI API 분석 오류:', error);
+      
+      // 에러 메시지에 따른 구체적인 안내
+      const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류';
+      
+      if (errorMessage.includes('API 키가 설정되지 않았습니다')) {
+        setAnalysisStatus('OpenAI API 키 미설정');
+        toast.error('⚙️ 설정 페이지에서 OpenAI API 키를 입력해주세요!', { duration: 5000 });
+      } else if (errorMessage.includes('AI 분석이 비활성화')) {
+        setAnalysisStatus('AI 분석 비활성화');
+        toast.error('⚙️ 설정 페이지에서 AI 분석을 활성화해주세요!', { duration: 5000 });
+      } else if (errorMessage.includes('모든 AI 분석 방법이 실패')) {
+        setAnalysisStatus('OpenAI API 분석 실패');
+        toast.error('🌐 네트워크 상태를 확인하거나 다른 URL을 시도해주세요', { duration: 5000 });
+      } else {
+        setAnalysisStatus('OpenAI API 오류 발생');
+        toast.error(`❌ ${errorMessage}`, { duration: 5000 });
+      }
     } finally {
       setIsAnalyzing(false);
     }
@@ -147,17 +162,17 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
         </div>
 
         {/* 현재 화면 처리 방식 안내 */}
-        <div className="mb-4 p-3 bg-green-50 rounded-lg border border-green-200">
-          <div className="flex items-center gap-2 text-green-700">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="text-sm font-medium">📸 완전 로딩 기반 스크린샷 분석</span>
+        <div className="mb-4 p-3 bg-purple-50 rounded-lg border border-purple-200">
+          <div className="flex items-center gap-2 text-purple-700">
+            <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
+            <span className="text-sm font-medium">🤖 OpenAI API 전용 분석</span>
           </div>
-          <p className="text-xs text-green-600 mt-1">
-            DOM 로딩 → 이미지 로딩 → 지연 콘텐츠 활성화 → 스크린샷 → AI 분석 ✨
+          <p className="text-xs text-purple-600 mt-1">
+            HTML 직접 분석 → OpenAI GPT-4o 분석 → 스크린샷 백업 분석 ✨
           </p>
-          <div className="text-xs text-green-500 mt-1 flex items-center gap-1">
+          <div className="text-xs text-purple-500 mt-1 flex items-center gap-1">
             <span>⏱️</span>
-            <span>처리 시간: 10-20초 (완전한 페이지 로딩 보장)</span>
+            <span>처리 시간: 5-15초 (OpenAI API 응답 속도에 따라 변동)</span>
           </div>
         </div>
 
@@ -201,25 +216,24 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
 
         {/* 분석 중 상태 표시 */}
         {isAnalyzing && (
-          <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
             <div className="flex items-center space-x-2">
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-              <span className="text-blue-800 font-medium">
-                📄 HTML 콘텐츠 직접 분석 중...
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-purple-600"></div>
+              <span className="text-purple-800 font-medium">
+                🤖 OpenAI API 분석 중...
               </span>
             </div>
-            <div className="mt-2 text-sm text-blue-600">
+            <div className="mt-2 text-sm text-purple-600">
               <div className="space-y-1">
                 <div>✅ 1단계: URL 페이지 HTML 페치</div>
                 <div>🔄 2단계: 프록시 서버를 통한 CORS 우회</div>
-                <div>🤖 3단계: OpenAI API로 메타태그 및 구조화 데이터 분석</div>
-                <div>📊 4단계: 상품 정보 추출 및 정리</div>
+                <div>🤖 3단계: OpenAI GPT-4o API로 상품 정보 분석</div>
+                <div>📊 4단계: 구조화된 데이터 추출 및 정리</div>
               </div>
-              <div className="mt-2 text-xs text-blue-500">
-                처리 시간: 5-10초 (네트워크 상태에 따라 변동)
-              </div>
-              <div className="mt-1 text-xs text-blue-500">
-                💡 개발자 도구 Network 탭에서 프록시 서버 및 OpenAI API 호출을 확인할 수 있습니다.
+              <div className="mt-2 text-xs text-purple-500">
+                처리 시간: 5-15초 (OpenAI API 응답 속도에 따라 변동)
+                <br />
+                💡 개발자 도구 Network 탭에서 OpenAI API 호출을 확인할 수 있습니다
               </div>
             </div>
           </div>

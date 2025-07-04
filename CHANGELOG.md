@@ -5,6 +5,31 @@
 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.0.0/)를 기반으로 하며,
 이 프로젝트는 [Semantic Versioning](https://semver.org/lang/ko/)을 준수합니다.
 
+## [2.0.7] - 2024-12-19
+
+### 🚀 주요 개선사항
+- **OpenAI API 전용 분석 시스템**: Mock 데이터 생성 로직 완전 제거
+- **Fallback 함수 제거**: analyzeClothingFallback, createFallbackAnalysis 함수 사용 중단
+- **강제 OpenAI API 호출**: API 키 미설정 시 명확한 에러 메시지 표시
+- **에러 처리 개선**: 실패 원인별 구체적인 사용자 안내 제공
+
+### 🔧 기술적 개선
+- **analyzeClothingFromUrl 함수 재작성**: OpenAI API 호출 실패 시 fallback 대신 에러 발생
+- **에러 메시지 분류**: API 키 미설정, AI 비활성화, 네트워크 오류 등 구분
+- **UI 메시지 개선**: OpenAI API 전용 분석 과정 명확히 안내
+- **로깅 강화**: 모든 단계에서 OpenAI API 호출 상태 추적
+
+### 🎯 사용자 경험 개선
+- **명확한 설정 안내**: API 키 미설정 시 설정 페이지 이동 안내
+- **실시간 상태 표시**: OpenAI API 호출 과정 4단계 진행 상황 표시
+- **에러 메시지 개선**: 각 실패 원인에 맞는 해결 방법 제시
+- **개발자 도구 안내**: Network 탭에서 OpenAI API 호출 확인 가능
+
+### 🐛 해결된 문제
+- **Mock 데이터 문제**: "Www 셔츠" 등 가짜 데이터 생성 완전 차단
+- **OpenAI API 우회**: Fallback 함수로 인한 실제 AI 분석 누락 방지
+- **에러 처리 부족**: 실패 원인 불명확 → 구체적인 오류 안내로 개선
+
 ## [2.0.6] - 2024-12-19
 
 ### 🔧 개선사항
