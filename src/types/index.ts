@@ -149,6 +149,7 @@ export interface SimpleAnalysisResult {
   name: string;
   category: string;
   imageUrl?: string;
+  originalUrl?: string;
   brand?: string;
   price?: number;
   colors?: string[];
