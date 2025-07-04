@@ -52,106 +52,234 @@ class SimpleImageGenerator implements SimpleImageGeneration {
     }
   }
 
-  // 무료 이미지 생성 API 사용
+  // 무료 이미지 생성 - 실제 의상 이미지 조합
   async generateOutfitImage(
-    userProfile: { gender: string; bodyType: string }, // 사용자 프로필 정보
+    userProfile: { gender: string; bodyType: string },
     selectedItems: { name: string; category: string; imageUrl?: string }[]
   ): Promise<string> {
     try {
-      // userProfile과 selectedItems를 사용하여 프롬프트 생성
-      const prompt = this.generatePrompt(userProfile, selectedItems);
+      // 실제 의상 이미지들이 있는 경우 조합하여 코디 이미지 생성
+      const itemsWithImages = selectedItems.filter((item): item is { name: string; category: string; imageUrl: string } => 
+        item.imageUrl !== undefined && item.imageUrl !== null && item.imageUrl !== ''
+      );
       
-      // Hugging Face Spaces API 사용 (무료)
-      const response = await fetch('https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          inputs: prompt,
-          parameters: {
-            num_inference_steps: 20,
-            guidance_scale: 7.5,
-            width: 512,
-            height: 768
-          }
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('이미지 생성 실패');
+      if (itemsWithImages.length > 0) {
+        return await this.generateOutfitCollage(userProfile, itemsWithImages);
+      } else {
+        // 이미지가 없는 경우 향상된 플레이스홀더 생성
+        return this.generateEnhancedPlaceholder(userProfile, selectedItems);
       }
-
-      const blob = await response.blob();
-      return URL.createObjectURL(blob);
       
     } catch (error) {
       console.error('이미지 생성 실패:', error);
       
-      // 폴백: 간단한 플레이스홀더 이미지 (userProfile 사용)
-      return this.generatePlaceholderImage(userProfile, selectedItems);
+      // 폴백: 기본 플레이스홀더 이미지
+      return this.generateEnhancedPlaceholder(userProfile, selectedItems);
     }
   }
 
-  // 프롬프트 생성
-  private generatePrompt(
+  // 실제 의상 이미지들을 조합하여 코디 콜라주 생성
+  private async generateOutfitCollage(
     userProfile: { gender: string; bodyType: string },
-    selectedItems: { name: string; category: string; imageUrl?: string }[]
-  ): string {
-    const genderText = userProfile.gender === 'male' ? 'male' : 'female';
-    const itemsText = selectedItems.map(item => item.name).join(', ');
-    
-    return `Professional fashion photography of a ${genderText} mannequin wearing ${itemsText}, clean white background, studio lighting, high quality, product catalog style`;
-  }
-
-  // 플레이스홀더 이미지 생성
-  private generatePlaceholderImage(
-    userProfile: { gender: string; bodyType: string },
-    selectedItems: { name: string; category: string; imageUrl?: string }[]
-  ): string {
-    // Canvas를 사용한 간단한 플레이스홀더 생성
+    itemsWithImages: { name: string; category: string; imageUrl: string }[]
+  ): Promise<string> {
     const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 768;
+    canvas.width = 600;
+    canvas.height = 800;
     const ctx = canvas.getContext('2d')!;
     
-    // 배경
-    ctx.fillStyle = '#f8f9fa';
+    // 배경 그라데이션
+    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    gradient.addColorStop(0, '#f8fafc');
+    gradient.addColorStop(1, '#e2e8f0');
+    ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
-    // 성별에 따른 마네킹 실루엣
-    ctx.fillStyle = '#e9ecef';
-    
-    if (userProfile.gender === 'male') {
-      // 남성 마네킹 - 더 각진 형태
-      ctx.fillRect(200, 100, 112, 200); // 몸통
-      ctx.fillRect(220, 50, 72, 80);   // 머리
-      ctx.fillRect(180, 120, 40, 120); // 왼팔
-      ctx.fillRect(292, 120, 40, 120); // 오른팔
-      ctx.fillRect(200, 300, 50, 200); // 왼다리
-      ctx.fillRect(262, 300, 50, 200); // 오른다리
-    } else {
-      // 여성 마네킹 - 더 곡선적인 형태
-      ctx.fillRect(205, 100, 102, 200); // 몸통 (약간 좁게)
-      ctx.fillRect(225, 50, 62, 80);   // 머리 (약간 작게)
-      ctx.fillRect(185, 120, 35, 120); // 왼팔 (약간 가늘게)
-      ctx.fillRect(292, 120, 35, 120); // 오른팔 (약간 가늘게)
-      ctx.fillRect(205, 300, 45, 200); // 왼다리 (약간 가늘게)
-      ctx.fillRect(262, 300, 45, 200); // 오른다리 (약간 가늘게)
-    }
-    
-    // 텍스트
-    ctx.fillStyle = '#6c757d';
-    ctx.font = '16px Arial';
+    // 제목
+    ctx.fillStyle = '#1e293b';
+    ctx.font = 'bold 24px Arial';
     ctx.textAlign = 'center';
-    ctx.fillText(`AI 코디 생성중... (${userProfile.gender === 'male' ? '남성' : '여성'})`, canvas.width / 2, canvas.height - 50);
+    ctx.fillText('AI 코디 추천', canvas.width / 2, 40);
     
-    // 선택된 아이템들 표시
-    selectedItems.forEach((item, index) => {
-      ctx.fillText(item.name, canvas.width / 2, canvas.height - 100 + (index * 20));
+    // 프로필 정보
+    ctx.fillStyle = '#64748b';
+    ctx.font = '16px Arial';
+    ctx.fillText(`${userProfile.gender === 'male' ? '남성' : '여성'} • ${userProfile.bodyType}`, canvas.width / 2, 70);
+    
+    // 의상 이미지들을 로드하고 배치
+    const loadedImages = await Promise.all(
+      itemsWithImages.map(item => this.loadImage(item.imageUrl))
+    );
+    
+    // 이미지 배치 계산
+    const imageSize = 120;
+    const spacing = 20;
+    const startY = 100;
+    
+    // 카테고리별 위치 설정
+    const categoryPositions: { [key: string]: { x: number; y: number } } = {
+      'tops': { x: canvas.width / 2 - imageSize / 2, y: startY },
+      'outerwear': { x: canvas.width / 2 - imageSize / 2, y: startY - 30 },
+      'bottoms': { x: canvas.width / 2 - imageSize / 2, y: startY + imageSize + spacing },
+      'shoes': { x: canvas.width / 2 - imageSize / 2, y: startY + (imageSize + spacing) * 2 },
+      'accessories': { x: canvas.width / 2 + imageSize / 2 + spacing, y: startY + imageSize / 2 }
+    };
+    
+    // 이미지 그리기
+    loadedImages.forEach((img, index) => {
+      if (img) {
+        const item = itemsWithImages[index];
+        const pos = categoryPositions[item.category] || { x: 50 + (index * 130), y: startY + 200 };
+        
+        // 이미지 배경
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(pos.x - 10, pos.y - 10, imageSize + 20, imageSize + 20);
+        ctx.strokeStyle = '#e2e8f0';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(pos.x - 10, pos.y - 10, imageSize + 20, imageSize + 20);
+        
+        // 이미지 그리기
+        ctx.drawImage(img, pos.x, pos.y, imageSize, imageSize);
+        
+        // 아이템 이름
+        ctx.fillStyle = '#374151';
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(item.name, pos.x + imageSize / 2, pos.y + imageSize + 25);
+      }
     });
     
+    // 하단 정보
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '14px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(`총 ${itemsWithImages.length}개 아이템으로 구성된 코디`, canvas.width / 2, canvas.height - 50);
+    ctx.fillText('AIVATAR AI 코디 추천', canvas.width / 2, canvas.height - 20);
+    
     return canvas.toDataURL();
+  }
+
+  // 이미지 로드 헬퍼 함수
+  private loadImage(src: string): Promise<HTMLImageElement | null> {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = src;
+    });
+  }
+
+  // 향상된 플레이스홀더 이미지 생성
+  private generateEnhancedPlaceholder(
+    userProfile: { gender: string; bodyType: string },
+    selectedItems: { name: string; category: string; imageUrl?: string }[]
+  ): string {
+    const canvas = document.createElement('canvas');
+    canvas.width = 600;
+    canvas.height = 800;
+    const ctx = canvas.getContext('2d')!;
+    
+    // 배경 그라데이션
+    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    gradient.addColorStop(0, '#f8fafc');
+    gradient.addColorStop(1, '#e2e8f0');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // 제목
+    ctx.fillStyle = '#1e293b';
+    ctx.font = 'bold 28px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('AI 코디 추천', canvas.width / 2, 60);
+    
+    // 프로필 정보
+    ctx.fillStyle = '#64748b';
+    ctx.font = '18px Arial';
+    ctx.fillText(`${userProfile.gender === 'male' ? '남성' : '여성'} • ${userProfile.bodyType}`, canvas.width / 2, 100);
+    
+    // 마네킹 그리기 (더 세련된 버전)
+    this.drawStylizedMannequin(ctx, canvas.width / 2, 200, userProfile.gender);
+    
+    // 선택된 아이템들 표시
+    ctx.fillStyle = '#374151';
+    ctx.font = 'bold 16px Arial';
+    ctx.fillText('선택된 아이템:', canvas.width / 2, 550);
+    
+    selectedItems.forEach((item, index) => {
+      ctx.fillStyle = '#6b7280';
+      ctx.font = '14px Arial';
+      ctx.fillText(`• ${item.name}`, canvas.width / 2, 580 + (index * 25));
+    });
+    
+    // 하단 정보
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '12px Arial';
+    ctx.fillText('실제 의상 이미지를 추가하면 더 정확한 코디를 생성할 수 있습니다', canvas.width / 2, canvas.height - 40);
+    ctx.fillText('AIVATAR - AI 착장 생성 플랫폼', canvas.width / 2, canvas.height - 20);
+    
+    return canvas.toDataURL();
+  }
+
+  // 세련된 마네킹 그리기
+  private drawStylizedMannequin(ctx: CanvasRenderingContext2D, centerX: number, centerY: number, gender: string) {
+    ctx.save();
+    
+    // 마네킹 색상
+    ctx.fillStyle = '#e5e7eb';
+    ctx.strokeStyle = '#d1d5db';
+    ctx.lineWidth = 2;
+    
+    if (gender === 'male') {
+      // 남성 마네킹
+      // 머리
+      ctx.beginPath();
+      ctx.arc(centerX, centerY - 80, 35, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      
+      // 목
+      ctx.fillRect(centerX - 8, centerY - 45, 16, 20);
+      
+      // 몸통
+      ctx.fillRect(centerX - 50, centerY - 25, 100, 120);
+      ctx.strokeRect(centerX - 50, centerY - 25, 100, 120);
+      
+      // 팔
+      ctx.fillRect(centerX - 70, centerY - 10, 20, 80);
+      ctx.fillRect(centerX + 50, centerY - 10, 20, 80);
+      
+      // 다리
+      ctx.fillRect(centerX - 35, centerY + 95, 25, 100);
+      ctx.fillRect(centerX + 10, centerY + 95, 25, 100);
+      
+    } else {
+      // 여성 마네킹
+      // 머리
+      ctx.beginPath();
+      ctx.arc(centerX, centerY - 80, 32, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      
+      // 목
+      ctx.fillRect(centerX - 6, centerY - 48, 12, 18);
+      
+      // 몸통 (더 곡선적)
+      ctx.beginPath();
+      ctx.ellipse(centerX, centerY + 20, 45, 60, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      
+      // 팔
+      ctx.fillRect(centerX - 65, centerY - 5, 18, 70);
+      ctx.fillRect(centerX + 47, centerY - 5, 18, 70);
+      
+      // 다리
+      ctx.fillRect(centerX - 30, centerY + 80, 22, 100);
+      ctx.fillRect(centerX + 8, centerY + 80, 22, 100);
+    }
+    
+    ctx.restore();
   }
 }
 
