@@ -666,7 +666,19 @@ async function capturePageScreenshot(url: string): Promise<string | null> {
   try {
     console.log('페이지 스크린샷 캡처 시작:', url);
     
-    // 1. Screen Capture API 사용 (브라우저 직접 스크린샷)
+    // 1. iframe + html2canvas 방식 (현재 화면에서 처리)
+    try {
+      console.log('iframe + html2canvas 방식으로 스크린샷 캡처 시도');
+      const screenshotBase64 = await captureWithIframe(url);
+      if (screenshotBase64) {
+        console.log('iframe 방식 스크린샷 캡처 성공');
+        return screenshotBase64;
+      }
+    } catch (error) {
+      console.warn('iframe 방식 실패:', error);
+    }
+    
+    // 2. Screen Capture API 사용 (브라우저 직접 스크린샷) - 폴백
     if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
       try {
         console.log('Screen Capture API를 사용하여 스크린샷 캡처 시도');
@@ -703,71 +715,6 @@ async function capturePageScreenshot(url: string): Promise<string | null> {
       }
     }
     
-    // 2. 새 탭에서 페이지 열고 스크린샷 (폴백 방식)
-    try {
-      console.log('새 탭 방식으로 스크린샷 캡처 시도');
-      
-      // 새 탭에서 페이지 열기
-      const newTab = window.open(url, '_blank', 'width=1200,height=800');
-      
-      if (!newTab) {
-        console.warn('새 탭 열기 실패 (팝업 차단)');
-        return null;
-      }
-      
-      // 페이지 로딩 대기
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      // 사용자에게 스크린샷 요청
-      const userConfirm = confirm(`
-🔍 스크린샷 캡처를 위해 다음 단계를 진행해주세요:
-
-1. 새로 열린 탭에서 상품 페이지가 완전히 로드되었는지 확인
-2. 확인 버튼을 클릭하면 화면 공유 요청이 나타납니다
-3. 해당 탭을 선택하여 공유해주세요
-
-계속하시겠습니까?
-      `);
-      
-      if (!userConfirm) {
-        newTab.close();
-        return null;
-      }
-      
-      // Screen Capture API 재시도
-      if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
-        const stream = await navigator.mediaDevices.getDisplayMedia({
-          video: true,
-          audio: false
-        });
-        
-        const video = document.createElement('video');
-        video.srcObject = stream;
-        video.play();
-        
-        return new Promise((resolve) => {
-          video.onloadedmetadata = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const ctx = canvas.getContext('2d')!;
-            ctx.drawImage(video, 0, 0);
-            
-            // 스트림 정리
-            stream.getTracks().forEach(track => track.stop());
-            newTab.close();
-            
-            const base64 = canvas.toDataURL('image/png');
-            console.log('새 탭 방식 스크린샷 캡처 성공');
-            resolve(base64);
-          };
-        });
-      }
-      
-    } catch (error) {
-      console.warn('새 탭 방식 실패:', error);
-    }
-    
     console.log('모든 스크린샷 캡처 방법 실패');
     return null;
     
@@ -775,6 +722,138 @@ async function capturePageScreenshot(url: string): Promise<string | null> {
     console.error('스크린샷 캡처 실패:', error);
     return null;
   }
+}
+
+// iframe + html2canvas를 사용한 스크린샷 캡처
+async function captureWithIframe(url: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    try {
+      console.log('iframe 방식 스크린샷 캡처 시작:', url);
+      
+      // 숨겨진 iframe 생성
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.top = '-9999px';
+      iframe.style.left = '-9999px';
+      iframe.style.width = '1200px';
+      iframe.style.height = '800px';
+      iframe.style.border = 'none';
+      iframe.style.zIndex = '-1000';
+      iframe.style.visibility = 'hidden';
+      
+      // 다양한 프록시 서버 시도
+      const proxyUrls = [
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+        `https://cors-anywhere.herokuapp.com/${url}`,
+        `https://thingproxy.freeboard.io/fetch/${url}`,
+        url // 직접 접근 시도 (동일 도메인이거나 CORS 허용된 경우)
+      ];
+      
+      let currentProxyIndex = 0;
+      
+      const tryNextProxy = () => {
+        if (currentProxyIndex >= proxyUrls.length) {
+          console.log('모든 프록시 시도 실패');
+          if (document.body.contains(iframe)) {
+            document.body.removeChild(iframe);
+          }
+          resolve(null);
+          return;
+        }
+        
+        const proxyUrl = proxyUrls[currentProxyIndex];
+        console.log(`프록시 시도 ${currentProxyIndex + 1}/${proxyUrls.length}:`, proxyUrl);
+        
+        iframe.onload = async () => {
+          try {
+            // html2canvas 동적 로드
+            if (!(window as any).html2canvas) {
+              await loadHtml2Canvas();
+            }
+            
+            // iframe 내용 확인
+            const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+            if (!iframeDoc || !iframeDoc.body) {
+              console.warn('iframe 내용 없음, 다음 프록시 시도');
+              currentProxyIndex++;
+              tryNextProxy();
+              return;
+            }
+            
+            // 페이지 로딩 대기
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            // iframe 내용 캡처
+            const canvas = await (window as any).html2canvas(iframeDoc.body, {
+              allowTaint: true,
+              useCORS: true,
+              scale: 0.8,
+              width: 1200,
+              height: 800,
+              scrollX: 0,
+              scrollY: 0,
+              backgroundColor: '#ffffff'
+            });
+            
+            // 캔버스를 Base64로 변환
+            const base64 = canvas.toDataURL('image/png', 0.8);
+            
+            // iframe 제거
+            document.body.removeChild(iframe);
+            
+            console.log('iframe 스크린샷 캡처 성공');
+            resolve(base64);
+            
+          } catch (error) {
+            console.error(`프록시 ${currentProxyIndex + 1} 캡처 실패:`, error);
+            currentProxyIndex++;
+            tryNextProxy();
+          }
+        };
+        
+        iframe.onerror = () => {
+          console.error(`프록시 ${currentProxyIndex + 1} 로드 실패`);
+          currentProxyIndex++;
+          tryNextProxy();
+        };
+        
+        // 타임아웃 설정 (각 프록시당 5초)
+        setTimeout(() => {
+          if (document.body.contains(iframe)) {
+            console.warn(`프록시 ${currentProxyIndex + 1} 타임아웃`);
+            currentProxyIndex++;
+            tryNextProxy();
+          }
+        }, 5000);
+        
+        iframe.src = proxyUrl;
+      };
+      
+      // iframe을 DOM에 추가하고 첫 번째 프록시 시도
+      document.body.appendChild(iframe);
+      tryNextProxy();
+      
+    } catch (error) {
+      console.error('iframe 생성 실패:', error);
+      resolve(null);
+    }
+  });
+}
+
+// html2canvas 라이브러리 동적 로드
+async function loadHtml2Canvas(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if ((window as any).html2canvas) {
+      resolve();
+      return;
+    }
+    
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('html2canvas 로드 실패'));
+    document.head.appendChild(script);
+  });
 }
 
 // 스크린샷 기반 AI 분석

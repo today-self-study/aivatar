@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { Plus, Sparkles, ExternalLink } from 'lucide-react';
+import { Plus, Sparkles, ExternalLink, ShoppingBag } from 'lucide-react';
 import { cn, generateId } from '../utils';
 import { analyzeClothingFromUrl } from '../utils/openai';
 import type { ClothingItem, ClothingCategoryType, SimpleAnalysisResult } from '../types';
@@ -13,50 +13,53 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
   const [url, setUrl] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [previewItem, setPreviewItem] = useState<SimpleAnalysisResult | null>(null);
+  const [analysisStatus, setAnalysisStatus] = useState('');
+  const [analysisResult, setAnalysisResult] = useState<SimpleAnalysisResult | null>(null);
+  const [autoRegister, setAutoRegister] = useState(true);
 
   // URL 분석 및 자동 등록
-  const analyzeAndAdd = async () => {
+  const handleAnalyze = async () => {
     if (!url.trim()) {
-      toast.error('상품 URL을 입력해주세요');
-      return;
+      toast.error('URL을 입력해주세요')
+      return
     }
 
-    // URL 유효성 검사
-    try {
-      new URL(url);
-    } catch {
-      toast.error('올바른 URL을 입력해주세요');
-      return;
-    }
-
-    setIsAnalyzing(true);
-    toast.loading('🤖 AI가 상품 페이지를 분석하고 있습니다...', { id: 'analyzing' });
+    setIsAnalyzing(true)
+    setAnalysisStatus('🔍 AI 분석 시작 중...')
 
     try {
-      const result = await analyzeClothingFromUrl(url);
-      console.log('분석 결과:', result);
+      console.log('의상 분석 시작:', url)
       
-      if (result) {
-        setPreviewItem({
-          ...result,
-          originalUrl: url
-        });
-        toast.success('✨ 상품 분석이 완료되었습니다!', { id: 'analyzing' });
-        
-        // 1초 후 자동 등록
-        setTimeout(() => {
-          addToClothingList(result, url);
-        }, 1500);
-      } else {
-        toast.error('상품 분석에 실패했습니다. 다시 시도해주세요.', { id: 'analyzing' });
+      // 단계별 상태 업데이트
+      setAnalysisStatus('📄 페이지 정보 가져오는 중...')
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      setAnalysisStatus('🖼️ 현재 화면에서 이미지 캡처 중...')
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      setAnalysisStatus('🤖 AI가 의상을 분석하는 중...')
+      const result = await analyzeClothingFromUrl(url)
+      
+      setAnalysisStatus('✅ 분석 완료!')
+      setAnalysisResult(result)
+      console.log('분석 결과:', result)
+      
+      // 자동 등록이 활성화된 경우 1초 후 자동 등록
+      if (autoRegister) {
+        setAnalysisStatus('🚀 자동 등록 중...')
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        await addPreviewItemAutomatically()
       }
+      
     } catch (error) {
-      console.error('분석 실패:', error);
-      toast.error('상품 분석 중 오류가 발생했습니다', { id: 'analyzing' });
+      console.error('분석 실패:', error)
+      setAnalysisStatus('❌ 분석 실패')
+      toast.error('분석에 실패했습니다. 다시 시도해주세요.')
     } finally {
-      setIsAnalyzing(false);
+      setIsAnalyzing(false)
+      setTimeout(() => setAnalysisStatus(''), 2000)
     }
-  };
+  }
 
   // 의상 목록에 추가
   const addToClothingList = (result: SimpleAnalysisResult, url: string) => {
@@ -86,7 +89,16 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
   // 키보드 이벤트 처리
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !isAnalyzing) {
-      analyzeAndAdd();
+      handleAnalyze();
+    }
+  };
+
+  // 자동으로 미리보기 아이템을 추가하는 함수
+  const addPreviewItemAutomatically = async () => {
+    if (analysisResult) {
+      addToClothingList(analysisResult, url);
+      setPreviewItem(null);
+      setUrl('');
     }
   };
 
@@ -103,6 +115,49 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
       </div>
 
       <div className="space-y-4">
+        {/* 헤더 */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg">
+              <ShoppingBag className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">의상 추가</h2>
+              <p className="text-sm text-gray-600">상품 URL을 입력하면 AI가 자동으로 분석합니다</p>
+            </div>
+          </div>
+          
+          {/* 자동 등록 토글 */}
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600">자동 등록</label>
+            <button
+              onClick={() => setAutoRegister(!autoRegister)}
+              className={cn(
+                "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
+                autoRegister ? "bg-green-500" : "bg-gray-300"
+              )}
+            >
+              <span
+                className={cn(
+                  "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
+                  autoRegister ? "translate-x-6" : "translate-x-1"
+                )}
+              />
+            </button>
+          </div>
+        </div>
+
+        {/* 현재 화면 처리 방식 안내 */}
+        <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+          <div className="flex items-center gap-2 text-blue-700">
+            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+            <span className="text-sm font-medium">현재 화면에서 즉시 처리</span>
+          </div>
+          <p className="text-xs text-blue-600 mt-1">
+            별도 탭이나 화면 공유 없이 현재 화면에서 바로 분석됩니다
+          </p>
+        </div>
+
         {/* URL 입력 */}
         <div className="relative">
           <input
@@ -119,7 +174,7 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
 
         {/* 분석 버튼 */}
         <button
-          onClick={analyzeAndAdd}
+          onClick={handleAnalyze}
           disabled={isAnalyzing || !url.trim()}
           className={cn(
             "w-full py-3 px-4 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2",
@@ -141,8 +196,24 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
           )}
         </button>
 
+        {/* 분석 중 상태 표시 */}
+        {isAnalyzing && (
+          <div className="mt-4 p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-200">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+              <span className="text-purple-700 font-medium">AI 분석 진행 중</span>
+            </div>
+            <div className="text-sm text-purple-600 mb-2">
+              {analysisStatus}
+            </div>
+            <div className="text-xs text-purple-500">
+              💡 현재 화면에서 자동으로 처리되고 있습니다
+            </div>
+          </div>
+        )}
+
         {/* 분석 결과 미리보기 */}
-        {previewItem && (
+        {analysisResult && (
           <div className="bg-gradient-to-r from-green-50 to-blue-50 p-6 rounded-xl border border-green-200 animate-in slide-in-from-bottom duration-300">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-green-800 flex items-center gap-2">
@@ -151,17 +222,17 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
               </h3>
               <div className="flex items-center gap-2 text-sm text-green-700">
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                자동 등록 중...
+                {analysisStatus}
               </div>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* 상품 이미지 */}
-              {previewItem.imageUrl && (
+              {analysisResult.imageUrl && (
                 <div className="flex justify-center">
                   <img 
-                    src={previewItem.imageUrl} 
-                    alt={previewItem.name}
+                    src={analysisResult.imageUrl} 
+                    alt={analysisResult.name}
                     className="w-full max-w-48 h-48 object-cover rounded-lg shadow-md"
                   />
                 </div>
@@ -171,10 +242,10 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
               <div className="space-y-3">
                 <div>
                   <h4 className="font-medium text-gray-700 mb-1">상품명</h4>
-                  <p className="text-gray-900 font-semibold">{previewItem.name}</p>
+                  <p className="text-gray-900 font-semibold">{analysisResult.name}</p>
                 </div>
 
-                {previewItem.brand && previewItem.brand !== 'Unknown' && (
+                {analysisResult.brand && analysisResult.brand !== 'Unknown' && (
                   <div>
                     <h4 className="font-medium text-gray-700 mb-1 flex items-center gap-2">
                       🏷️ 브랜드
@@ -182,11 +253,11 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
                         AI 인식
                       </span>
                     </h4>
-                    <p className="text-gray-900 font-medium">{previewItem.brand}</p>
+                    <p className="text-gray-900 font-medium">{analysisResult.brand}</p>
                   </div>
                 )}
 
-                {previewItem.price && previewItem.price > 0 && (
+                {analysisResult.price && analysisResult.price > 0 && (
                   <div>
                     <h4 className="font-medium text-gray-700 mb-1 flex items-center gap-2">
                       💰 가격
@@ -194,15 +265,15 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
                         AI 추정
                       </span>
                     </h4>
-                    <p className="text-gray-900 font-bold text-lg">₩{previewItem.price.toLocaleString()}</p>
+                    <p className="text-gray-900 font-bold text-lg">₩{analysisResult.price.toLocaleString()}</p>
                   </div>
                 )}
 
-                {previewItem.colors && previewItem.colors.length > 0 && (
+                {analysisResult.colors && analysisResult.colors.length > 0 && (
                   <div>
                     <h4 className="font-medium text-gray-700 mb-2">🎨 색상</h4>
                     <div className="flex flex-wrap gap-2">
-                      {previewItem.colors.map((color, index) => (
+                      {analysisResult.colors.map((color, index) => (
                         <span
                           key={index}
                           className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-purple-100 text-purple-800"
@@ -218,24 +289,24 @@ const ClothingItemForm: React.FC<ClothingItemFormProps> = ({ onAddItem }) => {
 
             {/* 추가 정보 */}
             <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-              {previewItem.material && (
+              {analysisResult.material && (
                 <div className="flex items-center gap-2">
                   <span className="text-gray-600">🧵 소재:</span>
-                  <span className="text-gray-900">{previewItem.material}</span>
+                  <span className="text-gray-900">{analysisResult.material}</span>
                 </div>
               )}
-              {previewItem.fit && (
+              {analysisResult.fit && (
                 <div className="flex items-center gap-2">
                   <span className="text-gray-600">👔 핏:</span>
-                  <span className="text-gray-900">{previewItem.fit}</span>
+                  <span className="text-gray-900">{analysisResult.fit}</span>
                 </div>
               )}
             </div>
 
-            {previewItem.description && (
+            {analysisResult.description && (
               <div className="mt-4 p-3 bg-white rounded-lg">
                 <h4 className="font-medium text-gray-700 mb-2">📝 설명</h4>
-                <p className="text-gray-800 text-sm">{previewItem.description}</p>
+                <p className="text-gray-800 text-sm">{analysisResult.description}</p>
               </div>
             )}
           </div>
