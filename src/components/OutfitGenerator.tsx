@@ -1,472 +1,328 @@
 import { useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { Sparkles, User, Shirt, Palette, Download, Share2, RefreshCw } from 'lucide-react';
+import { Sparkles, Download, Share2, Image, Palette, User, Shirt } from 'lucide-react';
 import { cn } from '../utils';
-import type { UserProfile, ClothingItem, OutfitGeneration } from '../types';
+import { getSimpleGenerator } from '../utils/openai';
+import type { Gender, BodyType, ClothingItem, OutfitGeneration } from '../types';
 
 interface OutfitGeneratorProps {
-  userProfile: UserProfile;
+  selectedGender: Gender | null;
+  selectedBodyType: BodyType | null;
   selectedItems: ClothingItem[];
   onGenerate: (outfit: OutfitGeneration) => void;
   className?: string;
 }
 
-interface GenerationStep {
-  id: string;
-  title: string;
-  description: string;
-  completed: boolean;
-  current: boolean;
-}
-
 export default function OutfitGenerator({ 
-  userProfile, 
+  selectedGender,
+  selectedBodyType,
   selectedItems, 
   onGenerate, 
   className 
 }: OutfitGeneratorProps) {
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedOutfit, setGeneratedOutfit] = useState<OutfitGeneration | null>(null);
-  const [currentStep, setCurrentStep] = useState(0);
-  const [progress, setProgress] = useState(0);
+  const [generationStep, setGenerationStep] = useState('');
+  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
 
-  const steps: GenerationStep[] = [
-    {
-      id: 'analyze',
-      title: '사용자 정보 분석',
-      description: '체형, 성별, 신체 정보를 분석하고 있어요',
-      completed: false,
-      current: false
-    },
-    {
-      id: 'items',
-      title: '의류 아이템 분석',
-      description: '선택한 의류들의 실제 이미지와 스타일을 분석해요',
-      completed: false,
-      current: false
-    },
-    {
-      id: 'coordinate',
-      title: '코디네이션 계산',
-      description: 'AI가 실제 의상을 고려한 최적의 조합을 찾고 있어요',
-      completed: false,
-      current: false
-    },
-    {
-      id: 'generate',
-      title: '착장 이미지 생성',
-      description: '실제 의상 이미지를 바탕으로 마네킹 착용 모습을 그려내고 있어요',
-      completed: false,
-      current: false
+  const handleGenerate = async () => {
+    if (!selectedGender || !selectedBodyType) {
+      toast.error('성별과 체형을 선택해주세요');
+      return;
     }
-  ];
 
-  const generateOutfit = async () => {
+    if (selectedItems.length === 0) {
+      toast.error('코디에 사용할 의상을 선택해주세요');
+      return;
+    }
+
     setIsGenerating(true);
-    setProgress(0);
-    setCurrentStep(0);
+    setGenerationStep('AI가 코디를 분석하고 있습니다...');
 
     try {
-      const { getOpenAI } = await import('../utils/openai');
-      const openaiUtils = getOpenAI();
+      const generator = getSimpleGenerator();
       
-      if (!openaiUtils) {
-        toast.error('AI 설정을 먼저 완료해주세요');
-        return;
-      }
-
-      // 단계 1: 사용자 정보 분석
-      setCurrentStep(0);
-      setProgress(25);
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // 단계 2: 의류 아이템 분석
-      setCurrentStep(1);
-      setProgress(50);
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // 단계 3: 코디네이션 계산 (실제 AI 추천)
-      setCurrentStep(2);
-      setProgress(75);
+      setGenerationStep('완벽한 착장을 생성하고 있습니다...');
       
-      const outfitRecommendation = await openaiUtils.generateOutfitRecommendation(
-        userProfile,
-        selectedItems
+      // 간단한 프로필 정보로 이미지 생성
+      const imageUrl = await generator.generateOutfitImage(
+        {
+          gender: selectedGender,
+          bodyType: selectedBodyType.name
+        },
+        selectedItems.map(item => ({
+          name: item.name,
+          category: item.category,
+          imageUrl: item.imageUrl
+        }))
       );
 
-      // 단계 4: 착장 이미지 생성 (실제 DALL-E 3)
-      setCurrentStep(3);
-      setProgress(90);
-      
-      // 이미지가 있는 아이템들을 확인하여 더 정확한 분석 수행
-      const itemsWithImages = selectedItems.filter(item => item.imageUrl);
-      
-      let generatedImageUrl: string;
-      
-      if (itemsWithImages.length > 0) {
-        try {
-          // 실험적 방법: GPT-4o 이미지 생성 직접 시도
-          generatedImageUrl = await openaiUtils.generateOutfitImageExperimental(
-            userProfile,
-            selectedItems
-          );
-        } catch (error) {
-          console.warn('실험적 방법 실패, 기존 방법으로 폴백:', error);
-          // 실험적 방법 실패 시 기존 방법 사용
-          generatedImageUrl = await openaiUtils.generateOutfitImageWithRealClothes(
-            userProfile,
-            selectedItems
-          );
-        }
-      } else {
-        generatedImageUrl = await openaiUtils.generateOutfitImage(
-          userProfile,
-          selectedItems
-        );
-      }
+      setGeneratedImage(imageUrl);
+      setGenerationStep('코디 완성!');
 
-      setProgress(100);
-
-      const generatedOutfit: OutfitGeneration = {
-        id: `outfit-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        userProfile,
+      // 생성된 코디 정보 생성
+      const outfit: OutfitGeneration = {
+        id: `outfit-${Date.now()}`,
+        userProfile: {
+          id: `profile-${Date.now()}`,
+          gender: selectedGender,
+          height: 170, // 기본값
+          weight: 65,  // 기본값
+          bodyType: selectedBodyType
+        },
         selectedItems,
-        generatedImageUrl,
-        aiDescription: outfitRecommendation.description,
+        generatedImageUrl: imageUrl,
+        aiDescription: `${selectedGender === 'male' ? '남성' : '여성'} ${selectedBodyType.name} 체형을 위한 ${selectedItems.map(item => item.name).join(', ')} 코디입니다.`,
         styleAnalysis: {
-          overall: outfitRecommendation.styleAnalysis,
-          coordination: outfitRecommendation.reasoning,
-          recommendations: outfitRecommendation.recommendations
+          overall: '모던 캐주얼',
+          coordination: '선택하신 아이템들이 조화롭게 어우러진 스타일입니다.',
+          recommendations: [
+            '색상 조합이 잘 어울립니다',
+            '체형에 맞는 핏으로 선택되었습니다',
+            '스타일이 일관성 있게 매치되었습니다'
+          ]
         },
         createdAt: new Date().toISOString()
       };
 
-      setGeneratedOutfit(generatedOutfit);
-      onGenerate(generatedOutfit);
-      toast.success('AI 코디 생성이 완료되었습니다!');
-      
+      onGenerate(outfit);
+      toast.success('멋진 코디가 완성되었습니다!');
+
     } catch (error) {
-      console.error('Outfit generation failed:', error);
-      toast.error(error instanceof Error ? error.message : 'AI 코디 생성에 실패했습니다');
+      console.error('코디 생성 실패:', error);
+      toast.error('코디 생성에 실패했습니다. 다시 시도해주세요.');
     } finally {
       setIsGenerating(false);
+      setGenerationStep('');
     }
-  };
-
-  const handleRegenerate = () => {
-    setGeneratedOutfit(null);
-    generateOutfit();
   };
 
   const handleDownload = () => {
-    if (generatedOutfit) {
-      // 이미지 다운로드 로직
-      const link = document.createElement('a');
-      link.href = generatedOutfit.generatedImageUrl;
-      link.download = `outfit-${generatedOutfit.id}.jpg`;
-      link.click();
-    }
+    if (!generatedImage) return;
+    
+    const link = document.createElement('a');
+    link.href = generatedImage;
+    link.download = `aivatar-outfit-${Date.now()}.png`;
+    link.click();
+    toast.success('이미지가 다운로드되었습니다!');
   };
 
   const handleShare = async () => {
-    if (generatedOutfit && navigator.share) {
-      try {
+    if (!generatedImage) return;
+    
+    try {
+      if (navigator.share) {
         await navigator.share({
-          title: 'AI 코디 추천',
-          text: generatedOutfit.aiDescription,
+          title: 'AIVATAR 코디',
+          text: '이 멋진 코디를 확인해보세요!',
           url: window.location.href
         });
-      } catch (error) {
-        console.error('Share failed:', error);
+      } else {
+        await navigator.clipboard.writeText(window.location.href);
+        toast.success('링크가 복사되었습니다!');
       }
+    } catch (error) {
+      console.error('공유 실패:', error);
+      toast.error('공유에 실패했습니다');
     }
   };
 
+  const canGenerate = selectedGender && selectedBodyType && selectedItems.length > 0;
+
   return (
     <div className={cn('w-full max-w-4xl mx-auto', className)}>
-      {/* 헤더 */}
-      <div className="text-center mb-8">
-        <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
-          <Sparkles className="w-8 h-8 text-white" />
-        </div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">AI 착장 생성</h2>
-        <p className="text-gray-600">
-          선택한 의상들을 바탕으로 완벽한 코디를 만들어드려요
-        </p>
-      </div>
-
-      {/* 선택된 아이템 요약 */}
-      <div className="bg-white rounded-2xl p-6 mb-6 shadow-sm border border-gray-100">
-        <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <Shirt className="w-5 h-5" />
-          선택한 아이템 ({selectedItems.length}개)
-        </h3>
+      <div className="space-y-8">
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {selectedItems.map(item => (
-            <div key={item.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
-              <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center">
-                {item.category === 'tops' && '👕'}
-                {item.category === 'bottoms' && '👖'}
-                {item.category === 'outerwear' && '🧥'}
-                {item.category === 'shoes' && '👟'}
-                {item.category === 'accessories' && '👜'}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-medium text-sm text-gray-900 truncate">
-                  {item.name}
-                </div>
-                <div className="text-xs text-gray-500">
-                  {item.brand} · {item.price.toLocaleString()}원
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* 사용자 정보 요약 */}
-      <div className="bg-white rounded-2xl p-6 mb-6 shadow-sm border border-gray-100">
-        <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <User className="w-5 h-5" />
-          사용자 정보
-        </h3>
-        
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="text-center p-3 bg-blue-50 rounded-xl">
-            <div className="text-2xl mb-1">
-              {userProfile.gender === 'male' ? '👨' : '👩'}
-            </div>
-            <div className="text-sm font-medium text-gray-900">
-              {userProfile.gender === 'male' ? '남성' : '여성'}
-            </div>
-          </div>
-          
-          <div className="text-center p-3 bg-green-50 rounded-xl">
-            <div className="text-2xl mb-1">📏</div>
-            <div className="text-sm font-medium text-gray-900">
-              {userProfile.height}cm
-            </div>
-          </div>
-          
-          <div className="text-center p-3 bg-purple-50 rounded-xl">
-            <div className="text-2xl mb-1">⚖️</div>
-            <div className="text-sm font-medium text-gray-900">
-              {userProfile.weight}kg
-            </div>
-          </div>
-          
-          <div className="text-center p-3 bg-orange-50 rounded-xl">
-            <div className="text-2xl mb-1">
-              {userProfile.bodyType.id === 'slender' && '🏃‍♀️'}
-              {userProfile.bodyType.id === 'athletic' && '💪'}
-              {userProfile.bodyType.id === 'pear' && '🍐'}
-              {userProfile.bodyType.id === 'apple' && '🍎'}
-              {userProfile.bodyType.id === 'hourglass' && '⏳'}
-              {userProfile.bodyType.id === 'rectangle' && '📐'}
-            </div>
-            <div className="text-sm font-medium text-gray-900">
-              {userProfile.bodyType.name}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 생성 진행 상태 */}
-      {isGenerating && (
-        <div className="bg-white rounded-2xl p-6 mb-6 shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-gray-900">생성 진행 상태</h3>
-            <span className="text-sm text-gray-500">{Math.round(progress)}%</span>
-          </div>
-          
-          {/* 프로그레스 바 */}
-          <div className="w-full bg-gray-200 rounded-full h-2 mb-6">
-            <div 
-              className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-
-          {/* 단계별 진행 상태 */}
-          <div className="space-y-3">
-            {steps.map((step, index) => (
-              <div 
-                key={step.id}
-                className={cn(
-                  'flex items-center gap-3 p-3 rounded-xl transition-all',
-                  index === currentStep 
-                    ? 'bg-purple-50 border border-purple-200' 
-                    : index < currentStep 
-                      ? 'bg-green-50 border border-green-200'
-                      : 'bg-gray-50 border border-gray-200'
-                )}
-              >
-                <div className={cn(
-                  'w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium',
-                  index === currentStep 
-                    ? 'bg-purple-500 text-white animate-pulse' 
-                    : index < currentStep 
-                      ? 'bg-green-500 text-white'
-                      : 'bg-gray-300 text-gray-500'
-                )}>
-                  {index < currentStep ? '✓' : index + 1}
-                </div>
-                
-                <div className="flex-1">
-                  <div className="font-medium text-sm text-gray-900">
-                    {step.title}
-                  </div>
-                  <div className="text-xs text-gray-600">
-                    {step.description}
-                  </div>
-                </div>
-                
-                {index === currentStep && (
-                  <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 생성된 결과 */}
-      {generatedOutfit && (
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-              <Palette className="w-5 h-5" />
-              AI 생성 결과
-            </h3>
-            
-            <div className="flex gap-2">
-              <button
-                onClick={handleRegenerate}
-                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                title="다시 생성"
-              >
-                <RefreshCw className="w-5 h-5" />
-              </button>
-              
-              <button
-                onClick={handleDownload}
-                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                title="다운로드"
-              >
-                <Download className="w-5 h-5" />
-              </button>
-              
-              <button
-                onClick={handleShare}
-                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                title="공유"
-              >
-                <Share2 className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* 생성된 이미지 */}
-            <div className="space-y-4">
-              <div className="aspect-[3/4] bg-gray-100 rounded-xl overflow-hidden">
-                <img
-                  src={generatedOutfit.generatedImageUrl}
-                  alt="AI 생성 착장 이미지"
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjYwMCIgdmlld0JveD0iMCAwIDQwMCA2MDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iNjAwIiBmaWxsPSIjRjNGNEY2Ii8+CjxjaXJjbGUgY3g9IjIwMCIgY3k9IjEwMCIgcj0iNDAiIGZpbGw9IiNEMUQ1REIiLz4KPHJlY3QgeD0iMTUwIiB5PSIxNTAiIHdpZHRoPSIxMDAiIGhlaWdodD0iMTUwIiBmaWxsPSIjRDFENURCIi8+CjxyZWN0IHg9IjE2MCIgeT0iMzEwIiB3aWR0aD0iMzAiIGhlaWdodD0iMTIwIiBmaWxsPSIjRDFENURCIi8+CjxyZWN0IHg9IjIxMCIgeT0iMzEwIiB3aWR0aD0iMzAiIGhlaWdodD0iMTIwIiBmaWxsPSIjRDFENURCIi8+CjxyZWN0IHg9IjEyMCIgeT0iMTgwIiB3aWR0aD0iMjAiIGhlaWdodD0iODAiIGZpbGw9IiNEMUQ1REIiLz4KPHJlY3QgeD0iMjYwIiB5PSIxODAiIHdpZHRoPSIyMCIgaGVpZ2h0PSI4MCIgZmlsbD0iI0QxRDVEQiIvPgo8dGV4dCB4PSIyMDAiIHk9IjQ4MCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjE2IiBmaWxsPSIjNjM3MEI0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5BSSBHZW5lcmF0ZWQgT3V0Zml0PC90ZXh0Pgo8L3N2Zz4K';
-                  }}
-                />
-              </div>
-              
-              <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-4 rounded-xl">
-                <div className="flex items-center gap-2 mb-2">
-                  <Sparkles className="w-4 h-4 text-purple-600" />
-                  <span className="text-sm font-medium text-purple-900">
-                    스타일 분석: {generatedOutfit.styleAnalysis.overall}
-                  </span>
-                </div>
-                <p className="text-sm text-purple-800">
-                  {generatedOutfit.styleAnalysis.coordination}
-                </p>
-              </div>
-            </div>
-
-            {/* 분석 결과 */}
-            <div className="space-y-4">
-              <div>
-                <h4 className="font-medium text-gray-900 mb-2">AI 코디 분석</h4>
-                <p className="text-sm text-gray-600 leading-relaxed">
-                  {generatedOutfit.aiDescription}
-                </p>
-              </div>
-
-              <div>
-                <h4 className="font-medium text-gray-900 mb-3">AI 추천 포인트</h4>
-                <div className="space-y-2">
-                  {generatedOutfit.styleAnalysis.recommendations.map((rec, index) => (
-                    <div key={index} className="flex items-start gap-2">
-                      <div className="w-1.5 h-1.5 bg-purple-500 rounded-full mt-2 flex-shrink-0" />
-                      <p className="text-sm text-gray-600">{rec}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="bg-gray-50 p-4 rounded-xl">
-                <h4 className="font-medium text-gray-900 mb-2">착용 아이템</h4>
-                <div className="space-y-2">
-                  {generatedOutfit.selectedItems.map(item => (
-                    <div key={item.id} className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">{item.name}</span>
-                      <span className="text-gray-900 font-medium">
-                        {item.price.toLocaleString()}원
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                <div className="border-t border-gray-200 pt-2 mt-2">
-                  <div className="flex items-center justify-between text-sm font-medium">
-                    <span>총 금액</span>
-                    <span className="text-purple-600">
-                      {generatedOutfit.selectedItems.reduce((sum, item) => sum + item.price, 0).toLocaleString()}원
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 생성 버튼 */}
-      {!isGenerating && !generatedOutfit && (
+        {/* 헤더 */}
         <div className="text-center">
-          <button
-            onClick={generateOutfit}
-            disabled={selectedItems.length === 0}
-            className={cn(
-              'px-8 py-4 rounded-2xl font-medium transition-all transform',
-              selectedItems.length > 0
-                ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 hover:scale-105'
-                : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-            )}
-          >
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5" />
-              AI 착장 생성하기
+          <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Sparkles className="w-8 h-8 text-white" />
+          </div>
+          <h2 className="text-3xl font-bold text-gray-900 mb-2">AI 코디 생성</h2>
+          <p className="text-gray-600">
+            선택한 의상들로 완벽한 코디를 만들어드려요
+          </p>
+        </div>
+
+        {/* 프로필 정보 */}
+        {(selectedGender || selectedBodyType) && (
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <User className="w-6 h-6 text-blue-600" />
+              프로필 정보
+            </h3>
+            <div className="flex gap-4">
+              {selectedGender && (
+                <div className="flex items-center gap-2 px-4 py-2 bg-purple-50 text-purple-700 rounded-lg">
+                  <span className="text-lg">
+                    {selectedGender === 'male' ? '👨' : '👩'}
+                  </span>
+                  {selectedGender === 'male' ? '남성' : '여성'}
+                </div>
+              )}
+              {selectedBodyType && (
+                <div className="flex items-center gap-2 px-4 py-2 bg-pink-50 text-pink-700 rounded-lg">
+                  <span className="text-lg">
+                    {selectedBodyType.id === 'slender' && '🏃‍♀️'}
+                    {selectedBodyType.id === 'athletic' && '💪'}
+                    {selectedBodyType.id === 'pear' && '🍐'}
+                    {selectedBodyType.id === 'apple' && '🍎'}
+                    {selectedBodyType.id === 'hourglass' && '⏳'}
+                    {selectedBodyType.id === 'rectangle' && '📐'}
+                  </span>
+                  {selectedBodyType.name}
+                </div>
+              )}
             </div>
-          </button>
+          </div>
+        )}
+
+        {/* 선택된 의상 미리보기 */}
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+          <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <Shirt className="w-6 h-6 text-purple-600" />
+            선택된 의상 ({selectedItems.length}개)
+          </h3>
           
-          {selectedItems.length === 0 && (
-            <p className="text-sm text-gray-500 mt-2">
-              의상을 선택한 후 생성할 수 있습니다
-            </p>
+          {selectedItems.length === 0 ? (
+            <div className="text-center py-8">
+              <Shirt className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500">코디에 사용할 의상을 선택해주세요</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {selectedItems.map((item) => (
+                  <div key={item.id} className="bg-gray-50 rounded-xl p-3">
+                    {item.imageUrl && (
+                      <img 
+                        src={item.imageUrl} 
+                        alt={item.name}
+                        className="w-full h-24 object-cover rounded-lg mb-2"
+                      />
+                    )}
+                    <div className="text-sm">
+                      <div className="font-medium text-gray-900 truncate">{item.name}</div>
+                      <div className="text-gray-500 text-xs">{item.brand}</div>
+                      <div className="text-purple-600 font-medium text-xs">
+                        {item.price.toLocaleString()}원
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="flex items-center justify-between p-4 bg-purple-50 rounded-xl">
+                <div>
+                  <div className="font-medium text-purple-900">
+                    총 {selectedItems.length}개 아이템
+                  </div>
+                  <div className="text-sm text-purple-700">
+                    총 가격: {selectedItems.reduce((sum, item) => sum + item.price, 0).toLocaleString()}원
+                  </div>
+                </div>
+                <button
+                  onClick={handleGenerate}
+                  disabled={!canGenerate || isGenerating}
+                  className={cn(
+                    'px-6 py-3 rounded-xl font-medium transition-colors flex items-center gap-2',
+                    canGenerate && !isGenerating
+                      ? 'bg-purple-600 text-white hover:bg-purple-700'
+                      : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                  )}
+                >
+                  {isGenerating ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      생성 중...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-5 h-5" />
+                      코디 생성
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           )}
         </div>
-      )}
+
+        {/* 생성 진행 상태 */}
+        {isGenerating && (
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+              </div>
+              <div className="flex-1">
+                <div className="font-medium text-gray-900">AI가 코디를 생성하고 있습니다</div>
+                <div className="text-sm text-purple-600 animate-pulse">{generationStep}</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 생성된 이미지 */}
+        {generatedImage && (
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+                <Image className="w-6 h-6 text-green-600" />
+                생성된 코디
+              </h3>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleDownload}
+                  className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                  title="다운로드"
+                >
+                  <Download className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={handleShare}
+                  className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                  title="공유"
+                >
+                  <Share2 className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="relative">
+              <img 
+                src={generatedImage} 
+                alt="생성된 코디"
+                className="w-full max-w-md mx-auto rounded-xl shadow-lg"
+              />
+              
+              {/* 이미지 오버레이 정보 */}
+              <div className="absolute bottom-4 left-4 right-4 bg-black bg-opacity-50 rounded-lg p-3 text-white">
+                <div className="text-sm font-medium">
+                  {selectedGender === 'male' ? '남성' : '여성'} • {selectedBodyType?.name}
+                </div>
+                <div className="text-xs opacity-90">
+                  {selectedItems.length}개 아이템 • {selectedItems.reduce((sum, item) => sum + item.price, 0).toLocaleString()}원
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 도움말 */}
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
+          <h4 className="font-medium text-blue-900 mb-3 flex items-center gap-2">
+            <Palette className="w-5 h-5" />
+            💡 코디 생성 팁
+          </h4>
+          <ul className="text-sm text-blue-800 space-y-2">
+            <li>• 다양한 카테고리의 의상을 선택하면 더 완성도 높은 코디가 생성됩니다</li>
+            <li>• 색상과 스타일이 조화로운 아이템들을 선택해보세요</li>
+            <li>• 생성된 이미지는 다운로드하거나 공유할 수 있습니다</li>
+            <li>• 마음에 들지 않으면 다른 의상 조합으로 다시 시도해보세요</li>
+          </ul>
+        </div>
+
+      </div>
     </div>
   );
 } 

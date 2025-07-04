@@ -1,231 +1,184 @@
 import { useState } from 'react';
-import { User, Ruler, Weight } from 'lucide-react';
-import type { UserProfile, BodyType, Gender } from '../types';
-import { cn, calculateBMI, getBMICategory, generateId } from '../utils';
+import { User, Check, ArrowRight } from 'lucide-react';
+import type { Gender, BodyType } from '../types';
+import { cn } from '../utils';
+import GenderSelector from './GenderSelector';
+import BodyTypeSelector from './BodyTypeSelector';
 
 interface UserProfileFormProps {
-  onSubmit: (profile: UserProfile) => void;
   selectedGender: Gender | null;
   selectedBodyType: BodyType | null;
+  onGenderSelect: (gender: Gender) => void;
+  onBodyTypeSelect: (bodyType: BodyType) => void;
+  onComplete: () => void;
   className?: string;
 }
 
 export default function UserProfileForm({
-  onSubmit,
   selectedGender,
   selectedBodyType,
+  onGenderSelect,
+  onBodyTypeSelect,
+  onComplete,
   className
 }: UserProfileFormProps) {
-  const [height, setHeight] = useState<number>(170);
-  const [weight, setWeight] = useState<number>(65);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [currentStep, setCurrentStep] = useState<'gender' | 'bodyType'>('gender');
+  const [isCompleting, setIsCompleting] = useState(false);
 
-  const bmi = calculateBMI(height, weight);
-  const bmiCategory = getBMICategory(bmi);
+  const handleGenderSelect = (gender: Gender) => {
+    onGenderSelect(gender);
+    setCurrentStep('bodyType');
+  };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleBodyTypeSelect = (bodyType: BodyType) => {
+    onBodyTypeSelect(bodyType);
+  };
+
+  const handleComplete = async () => {
+    if (!selectedGender || !selectedBodyType) return;
     
-    if (!selectedGender) {
-      alert('성별을 선택해주세요.');
-      return;
-    }
-    
-    if (!selectedBodyType) {
-      alert('체형을 선택해주세요.');
-      return;
-    }
-
-    setIsSubmitting(true);
+    setIsCompleting(true);
     
     try {
-      const userProfile: UserProfile = {
-        id: generateId(),
-        gender: selectedGender,
-        height,
-        weight,
-        bodyType: selectedBodyType
-      };
-
-      await new Promise(resolve => setTimeout(resolve, 500)); // 로딩 효과
-      onSubmit(userProfile);
+      // 간단한 로딩 효과
+      await new Promise(resolve => setTimeout(resolve, 500));
+      onComplete();
     } catch (error) {
-      console.error('프로필 생성 중 오류:', error);
-      alert('프로필 생성 중 오류가 발생했습니다.');
+      console.error('프로필 완성 중 오류:', error);
     } finally {
-      setIsSubmitting(false);
+      setIsCompleting(false);
     }
   };
 
+  const canComplete = selectedGender && selectedBodyType;
+
   return (
-    <div className={cn('w-full max-w-md mx-auto', className)}>
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="text-center mb-6">
-          <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <User className="w-8 h-8 text-primary-600" />
+    <div className={cn('w-full max-w-2xl mx-auto', className)}>
+      <div className="bg-white rounded-2xl shadow-lg p-8">
+        {/* 헤더 */}
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 bg-gradient-to-r from-purple-100 to-pink-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <User className="w-8 h-8 text-purple-600" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900">신체 정보 입력</h2>
+          <h2 className="text-2xl font-bold text-gray-900">간단한 정보 입력</h2>
           <p className="text-gray-600 mt-2">
-            AI 코디 추천을 위해 신체 정보를 입력해주세요.
+            AI가 더 정확한 코디를 추천하기 위해 기본 정보를 알려주세요
           </p>
         </div>
 
-        {/* 선택된 성별 정보 */}
-        {selectedGender && (
-          <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-            <h3 className="font-medium text-gray-900 mb-2">선택한 성별</h3>
-            <div className="flex items-center gap-3">
-              <div className="text-2xl">
-                {selectedGender === 'male' ? '👨' : '👩'}
+        {/* 진행 단계 표시 */}
+        <div className="flex items-center justify-center mb-8">
+          <div className="flex items-center gap-4">
+            <div className={cn(
+              'flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors',
+              currentStep === 'gender' || selectedGender
+                ? 'bg-purple-100 text-purple-700'
+                : 'bg-gray-100 text-gray-500'
+            )}>
+              {selectedGender ? <Check className="w-4 h-4" /> : <span className="w-4 h-4 bg-purple-600 rounded-full" />}
+              성별 선택
+            </div>
+            <ArrowRight className="w-4 h-4 text-gray-400" />
+            <div className={cn(
+              'flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors',
+              currentStep === 'bodyType' || selectedBodyType
+                ? 'bg-purple-100 text-purple-700'
+                : 'bg-gray-100 text-gray-500'
+            )}>
+              {selectedBodyType ? <Check className="w-4 h-4" /> : <span className="w-4 h-4 bg-purple-600 rounded-full" />}
+              체형 선택
+            </div>
+          </div>
+        </div>
+
+        {/* 성별 선택 */}
+        {currentStep === 'gender' && (
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4 text-center">
+                성별을 선택해주세요
+              </h3>
+              <GenderSelector
+                selectedGender={selectedGender}
+                onGenderSelect={handleGenderSelect}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* 체형 선택 */}
+        {currentStep === 'bodyType' && (
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4 text-center">
+                체형을 선택해주세요
+              </h3>
+              <BodyTypeSelector
+                selectedBodyType={selectedBodyType}
+                onBodyTypeSelect={handleBodyTypeSelect}
+              />
+            </div>
+
+            {/* 완료 버튼 */}
+            {selectedBodyType && (
+              <div className="flex justify-center pt-6">
+                <button
+                  onClick={handleComplete}
+                  disabled={!canComplete || isCompleting}
+                  className={cn(
+                    'flex items-center gap-2 px-8 py-3 rounded-xl font-medium transition-all',
+                    canComplete && !isCompleting
+                      ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 transform hover:scale-105'
+                      : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                  )}
+                >
+                  {isCompleting ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      완료 중...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-5 h-5" />
+                      프로필 완성
+                    </>
+                  )}
+                </button>
               </div>
-              <div>
-                <div className="font-medium text-gray-900">
+            )}
+          </div>
+        )}
+
+        {/* 선택된 정보 요약 (하단) */}
+        {(selectedGender || selectedBodyType) && (
+          <div className="mt-8 pt-6 border-t border-gray-200">
+            <h4 className="text-sm font-medium text-gray-700 mb-3">선택한 정보</h4>
+            <div className="flex flex-wrap gap-3">
+              {selectedGender && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-purple-50 text-purple-700 rounded-lg text-sm">
+                  <span className="text-lg">
+                    {selectedGender === 'male' ? '👨' : '👩'}
+                  </span>
                   {selectedGender === 'male' ? '남성' : '여성'}
                 </div>
-                <div className="text-sm text-gray-600">
-                  {selectedGender === 'male' ? '남성 체형에 맞는 분석' : '여성 체형에 맞는 분석'}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 키 입력 */}
-        <div className="space-y-2">
-          <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-            <Ruler className="w-4 h-4" />
-            키 (cm)
-          </label>
-          <div className="relative">
-            <input
-              type="number"
-              value={height}
-              onChange={(e) => setHeight(Number(e.target.value))}
-              min="120"
-              max="220"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              placeholder="170"
-            />
-            <div className="absolute right-3 top-2 text-gray-500 text-sm">cm</div>
-          </div>
-          <div className="flex justify-between text-xs text-gray-500">
-            <span>120cm</span>
-            <span>220cm</span>
-          </div>
-          <input
-            type="range"
-            min="120"
-            max="220"
-            value={height}
-            onChange={(e) => setHeight(Number(e.target.value))}
-            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-          />
-        </div>
-
-        {/* 몸무게 입력 */}
-        <div className="space-y-2">
-          <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-            <Weight className="w-4 h-4" />
-            몸무게 (kg)
-          </label>
-          <div className="relative">
-            <input
-              type="number"
-              value={weight}
-              onChange={(e) => setWeight(Number(e.target.value))}
-              min="30"
-              max="200"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              placeholder="65"
-            />
-            <div className="absolute right-3 top-2 text-gray-500 text-sm">kg</div>
-          </div>
-          <div className="flex justify-between text-xs text-gray-500">
-            <span>30kg</span>
-            <span>200kg</span>
-          </div>
-          <input
-            type="range"
-            min="30"
-            max="200"
-            value={weight}
-            onChange={(e) => setWeight(Number(e.target.value))}
-            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-          />
-        </div>
-
-        {/* BMI 정보 */}
-        <div className="bg-gray-50 p-4 rounded-lg">
-          <h3 className="font-medium text-gray-900 mb-2">BMI 정보</h3>
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-2xl font-bold text-primary-600">
-                {bmi.toFixed(1)}
-              </span>
-              <span className="text-gray-600 ml-2">({bmiCategory})</span>
-            </div>
-            <div className="text-right">
-              <div className="text-sm text-gray-500">정상 범위</div>
-              <div className="text-sm font-medium">18.5 - 24.9</div>
-            </div>
-          </div>
-        </div>
-
-        {/* 선택된 체형 정보 */}
-        {selectedBodyType && (
-          <div className="bg-primary-50 p-4 rounded-lg border border-primary-200">
-            <h3 className="font-medium text-primary-900 mb-2">선택한 체형</h3>
-            <div className="flex items-center gap-3">
-              <div className="text-3xl">
-                {selectedBodyType.id === 'slender' && '🏃‍♀️'}
-                {selectedBodyType.id === 'athletic' && '💪'}
-                {selectedBodyType.id === 'pear' && '🍐'}
-                {selectedBodyType.id === 'apple' && '🍎'}
-                {selectedBodyType.id === 'hourglass' && '⏳'}
-                {selectedBodyType.id === 'rectangle' && '📐'}
-              </div>
-              <div>
-                <div className="font-medium text-primary-900">
+              )}
+              {selectedBodyType && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-pink-50 text-pink-700 rounded-lg text-sm">
+                  <span className="text-lg">
+                    {selectedBodyType.id === 'slender' && '🏃‍♀️'}
+                    {selectedBodyType.id === 'athletic' && '💪'}
+                    {selectedBodyType.id === 'pear' && '🍐'}
+                    {selectedBodyType.id === 'apple' && '🍎'}
+                    {selectedBodyType.id === 'hourglass' && '⏳'}
+                    {selectedBodyType.id === 'rectangle' && '📐'}
+                  </span>
                   {selectedBodyType.name}
                 </div>
-                <div className="text-sm text-primary-700">
-                  {selectedBodyType.description}
-                </div>
-              </div>
+              )}
             </div>
           </div>
         )}
-
-        {/* 제출 버튼 */}
-        <button
-          type="submit"
-          disabled={!selectedGender || !selectedBodyType || isSubmitting}
-          className={cn(
-            'w-full py-3 px-4 rounded-lg font-medium transition-colors',
-            'focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-            selectedGender && selectedBodyType && !isSubmitting
-              ? 'bg-primary-600 text-white hover:bg-primary-700'
-              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-          )}
-        >
-          {isSubmitting ? (
-            <div className="flex items-center justify-center gap-2">
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              프로필 저장 중...
-            </div>
-          ) : (
-            '프로필 저장하고 의상 추가하기'
-          )}
-        </button>
-
-        {/* 도움말 텍스트 */}
-        <div className="text-center text-sm text-gray-500">
-          <p>
-            입력한 정보는 AI 코디 추천에만 사용되며,<br />
-            브라우저에 안전하게 저장됩니다.
-          </p>
-        </div>
-      </form>
+      </div>
     </div>
   );
 } 
