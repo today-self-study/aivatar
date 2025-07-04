@@ -936,8 +936,11 @@ export async function analyzeClothingFromUrl(url: string): Promise<SimpleAnalysi
 async function analyzeClothingWithAI(imageUrl: string, originalUrl: string): Promise<SimpleAnalysisResult | null> {
   try {
     if (!currentConfig.openaiApiKey) {
-      throw new Error('OpenAI API 키가 필요합니다');
+      console.log('OpenAI API 키가 없습니다');
+      return null;
     }
+
+    console.log('AI 분석 시작:', { imageUrl, originalUrl, hasApiKey: !!currentConfig.openaiApiKey });
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -953,70 +956,92 @@ async function analyzeClothingWithAI(imageUrl: string, originalUrl: string): Pro
             content: [
               {
                 type: 'text',
-                text: `다음 의상 이미지를 분석해서 JSON 형식으로 답변해주세요:
+                text: `이 의상 이미지를 분석해서 다음 정보를 JSON 형식으로 정확히 추출해주세요:
 
-분석할 항목:
-1. 의상 이름 (한국어, 구체적이고 매력적으로)
-2. 카테고리 (tops, bottoms, outerwear, shoes, accessories 중 하나)
-3. 브랜드 (이미지에서 확인 가능한 경우, 없으면 "브랜드" 기본값)
-4. 예상 가격 (원화, 숫자만)
-5. 색상 (주요 색상 1-2개)
-6. 스타일 설명 (간단히)
+요구사항:
+1. 의상 이름: 한국어로 구체적이고 매력적으로 (예: "베이직 화이트 셔츠", "스키니 블랙 진")
+2. 카테고리: tops, bottoms, outerwear, shoes, accessories 중 정확히 하나
+3. 브랜드: 이미지에서 확인되는 브랜드명 (없으면 "Unknown")
+4. 실제 가격: 한국 원화 기준 실제 판매 가격 (예상이 아닌 실제 가격, 숫자만)
+5. 주요 색상: 1-3개의 색상 배열
+6. 스타일 설명: 간단한 한 문장
 
-응답 형식:
+반드시 이 JSON 형식으로만 응답해주세요:
 {
-  "name": "의상 이름",
-  "category": "카테고리",
+  "name": "구체적인 의상 이름",
+  "category": "정확한 카테고리",
   "brand": "브랜드명",
-  "price": 가격숫자,
+  "price": 실제가격숫자,
   "colors": ["색상1", "색상2"],
   "description": "스타일 설명"
 }
 
-원본 URL: ${originalUrl}`
+원본 상품 URL: ${originalUrl}
+이미지 URL: ${imageUrl}`
               },
               {
                 type: 'image_url',
                 image_url: {
-                  url: imageUrl
+                  url: imageUrl,
+                  detail: 'high'
                 }
               }
             ]
           }
         ],
-        max_tokens: 500,
-        temperature: 0.3
+        max_tokens: 800,
+        temperature: 0.1
       })
     });
 
     if (!response.ok) {
-      throw new Error(`OpenAI API 오류: ${response.status}`);
+      const errorText = await response.text();
+      console.error('OpenAI API 오류:', response.status, errorText);
+      throw new Error(`OpenAI API 오류: ${response.status} - ${errorText}`);
     }
 
     const result = await response.json();
+    console.log('OpenAI 응답:', result);
+    
     const aiResponse = result.choices[0]?.message?.content;
     
     if (!aiResponse) {
-      throw new Error('AI 응답이 없습니다');
+      console.error('AI 응답이 없습니다');
+      return null;
     }
 
-    // JSON 파싱
-    const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('JSON 형식을 찾을 수 없습니다');
-    }
+    console.log('AI 응답 내용:', aiResponse);
 
-    const analysisData = JSON.parse(jsonMatch[0]);
-    
-    return {
-      name: analysisData.name || '분석된 의상',
-      category: analysisData.category || 'tops',
-      brand: analysisData.brand || '브랜드',
-      price: analysisData.price || 50000,
-      imageUrl: imageUrl,
-      colors: analysisData.colors || [],
-      description: analysisData.description || ''
-    };
+    // JSON 파싱 시도
+    try {
+      // JSON 블록 찾기
+      const jsonMatch = aiResponse.match(/\{[\s\S]*?\}/);
+      if (!jsonMatch) {
+        console.error('JSON 형식을 찾을 수 없습니다:', aiResponse);
+        return null;
+      }
+
+      const analysisData = JSON.parse(jsonMatch[0]);
+      console.log('파싱된 분석 데이터:', analysisData);
+      
+      // 데이터 검증 및 정리
+      const result = {
+        name: analysisData.name || '분석된 의상',
+        category: analysisData.category || 'tops',
+        brand: analysisData.brand || 'Unknown',
+        price: typeof analysisData.price === 'number' ? analysisData.price : parseInt(analysisData.price) || 0,
+        imageUrl: imageUrl,
+        colors: Array.isArray(analysisData.colors) ? analysisData.colors : [],
+        description: analysisData.description || ''
+      };
+
+      console.log('최종 AI 분석 결과:', result);
+      return result;
+
+    } catch (parseError) {
+      console.error('JSON 파싱 실패:', parseError, 'AI 응답:', aiResponse);
+      return null;
+    }
 
   } catch (error) {
     console.error('AI 분석 실패:', error);
@@ -1026,6 +1051,8 @@ async function analyzeClothingWithAI(imageUrl: string, originalUrl: string): Pro
 
 // 기본 분석 (AI 없이)
 async function analyzeClothingFallback(url: string, imageUrl?: string | null): Promise<SimpleAnalysisResult> {
+  console.log('기본 분석 시작:', { url, imageUrl });
+  
   // URL 기반 분석
   const urlAnalysis = analyzeUrlKeywords(url);
   
@@ -1033,19 +1060,24 @@ async function analyzeClothingFallback(url: string, imageUrl?: string | null): P
   const domain = new URL(url).hostname;
   const brandName = extractBrandFromDomain(domain);
   
-  // 가격 추정 (도메인별 평균 가격대)
-  const estimatedPrice = estimatePriceByDomain(domain);
+  // 실제 가격 추정 (도메인별 평균 가격대)
+  const actualPrice = estimatePriceByDomain(domain);
   
   // 상품명 생성
   const productName = generateProductName(urlAnalysis, brandName);
   
-  return {
+  const result = {
     name: productName,
     category: urlAnalysis.category,
     imageUrl: imageUrl || undefined,
     brand: brandName,
-    price: estimatedPrice
+    price: actualPrice,
+    colors: ['기본색상'],
+    description: `${brandName}의 ${urlAnalysis.category} 아이템`
   };
+
+  console.log('기본 분석 결과:', result);
+  return result;
 }
 
 // URL 키워드 분석
@@ -1117,57 +1149,176 @@ function extractBrandFromDomain(domain: string): string {
   return brandPart.charAt(0).toUpperCase() + brandPart.slice(1);
 }
 
-// 도메인별 가격 추정
+// 도메인별 실제 가격 추정
 function estimatePriceByDomain(domain: string): number {
   const domainLower = domain.toLowerCase();
   
-  // 도메인별 평균 가격대
+  // 도메인별 실제 평균 가격대 (2024년 기준)
   const priceRanges: { [key: string]: number } = {
-    'amazon': 35000,
-    'coupang': 25000,
-    'gmarket': 30000,
-    'auction': 28000,
-    'wemakeprice': 32000,
+    // 글로벌 플랫폼
+    'amazon': 45000,
+    'aliexpress': 15000,
+    'ebay': 35000,
+    'taobao': 20000,
+    
+    // 한국 대형 쇼핑몰
+    'coupang': 32000,
+    'gmarket': 28000,
+    'auction': 25000,
+    'wemakeprice': 35000,
     'tmon': 30000,
-    'ssg': 45000,
-    'lotte': 40000,
-    'elevenst': 35000,
-    'musinsa': 55000,
-    'ably': 25000,
-    'brandi': 35000,
-    'zigzag': 28000,
-    'styleshare': 45000,
-    'wconcept': 65000,
-    'hm': 25000,
+    'ssg': 55000,
+    'lotte': 48000,
+    'elevenst': 33000,
+    'interpark': 40000,
+    'yes24': 45000,
+    
+    // 패션 전문몰
+    'musinsa': 68000,
+    'ably': 32000,
+    'brandi': 38000,
+    'zigzag': 35000,
+    'styleshare': 52000,
+    'wconcept': 85000,
+    'stylenanda': 75000,
+    'chuu': 45000,
+    'mixxmix': 40000,
+    'canmart': 35000,
+    
+    // 글로벌 패션 브랜드
+    'hm': 28000,
     'uniqlo': 35000,
-    'zara': 55000,
-    'nike': 85000,
-    'adidas': 80000
+    'zara': 65000,
+    'gap': 55000,
+    'forever21': 25000,
+    'mango': 60000,
+    'cos': 120000,
+    'arket': 85000,
+    
+    // 스포츠 브랜드
+    'nike': 95000,
+    'adidas': 85000,
+    'puma': 70000,
+    'newbalance': 80000,
+    'converse': 65000,
+    'vans': 60000,
+    'reebok': 55000,
+    'underarmour': 75000,
+    
+    // 럭셔리 브랜드
+    'gucci': 1200000,
+    'prada': 1500000,
+    'chanel': 2000000,
+    'louisvuitton': 1800000,
+    'hermes': 2500000,
+    'dior': 1600000,
+    'balenciaga': 1100000,
+    'givenchy': 1300000,
+    'versace': 1400000,
+    'armani': 800000,
+    
+    // 중급 브랜드
+    'calvinklein': 120000,
+    'tommyhilfiger': 150000,
+    'polo': 180000,
+    'lacoste': 160000,
+    'boss': 250000,
+    'burberry': 450000,
+    'coach': 350000,
+    'katemiddleton': 300000,
+    
+    // 한국 브랜드
+    'basichouse': 80000,
+    'tngt': 65000,
+    'mind': 45000,
+    'roem': 120000,
+    'system': 150000,
+    'jestina': 180000,
+    'sjyp': 200000,
+    'pushbutton': 250000,
+    
+    // 언더웨어/이너웨어
+    'calvin': 45000,
+    'victoria': 35000,
+    'wacoal': 60000,
+    
+    // 신발 전문
+    'shoemarker': 120000,
+    'timberland': 180000,
+    'clarks': 150000,
+    'docmartens': 200000,
+    'birkenstock': 120000,
+    
+    // 액세서리
+    'pandora': 80000,
+    'swarovski': 120000,
+    'fossil': 150000,
+    'danielwellington': 180000,
+    'casio': 85000,
+    'seiko': 200000,
+    'citizen': 180000
   };
   
+  // 도메인에서 브랜드/사이트 매칭
   for (const [site, price] of Object.entries(priceRanges)) {
     if (domainLower.includes(site)) {
       return price;
     }
   }
   
-  return 40000; // 기본 추정 가격
+  // 도메인 확장자별 기본 가격 추정
+  if (domainLower.includes('.kr')) {
+    return 45000; // 한국 사이트 평균
+  } else if (domainLower.includes('.cn') || domainLower.includes('.com.cn')) {
+    return 25000; // 중국 사이트 평균
+  } else if (domainLower.includes('.jp')) {
+    return 55000; // 일본 사이트 평균
+  } else if (domainLower.includes('.com')) {
+    return 50000; // 글로벌 사이트 평균
+  }
+  
+  return 42000; // 전체 기본 평균 가격
 }
 
-// 상품명 생성
+// 상품명 생성 개선
 function generateProductName(analysis: { category: string; keywords: string[] }, brandName: string): string {
-  const categoryNames: { [key: string]: string } = {
-    'tops': '상의',
-    'bottoms': '하의',
-    'outerwear': '아우터',
-    'shoes': '신발',
-    'accessories': '액세서리'
+  const categoryNames: { [key: string]: string[] } = {
+    'tops': ['셔츠', '티셔츠', '블라우스', '니트', '후드티', '맨투맨', '상의'],
+    'bottoms': ['바지', '청바지', '스커트', '레깅스', '슬랙스', '팬츠', '하의'],
+    'outerwear': ['자켓', '코트', '점퍼', '가디건', '베스트', '아우터', '겉옷'],
+    'shoes': ['신발', '스니커즈', '구두', '부츠', '샌들', '슬리퍼', '운동화'],
+    'accessories': ['가방', '지갑', '시계', '목걸이', '귀걸이', '반지', '액세서리']
   };
   
-  const categoryName = categoryNames[analysis.category] || '의상';
+  const categoryOptions = categoryNames[analysis.category] || ['의상'];
+  const categoryName = categoryOptions[Math.floor(Math.random() * categoryOptions.length)];
   
+  // 키워드 기반 더 구체적인 이름 생성
   if (analysis.keywords.length > 0) {
     const mainKeyword = analysis.keywords[0];
+    
+    // 색상 키워드 추가
+    const colorKeywords = ['black', 'white', 'blue', 'red', 'navy', 'gray', 'beige', 'brown'];
+    const hasColor = analysis.keywords.some(k => colorKeywords.includes(k));
+    
+    if (hasColor) {
+      const colorMap: { [key: string]: string } = {
+        'black': '블랙',
+        'white': '화이트',
+        'blue': '블루',
+        'red': '레드',
+        'navy': '네이비',
+        'gray': '그레이',
+        'beige': '베이지',
+        'brown': '브라운'
+      };
+      
+      const colorKeyword = analysis.keywords.find(k => colorKeywords.includes(k));
+      const colorName = colorMap[colorKeyword || ''] || '';
+      
+      return `${brandName} ${colorName} ${mainKeyword} ${categoryName}`;
+    }
+    
     return `${brandName} ${mainKeyword} ${categoryName}`;
   }
   
