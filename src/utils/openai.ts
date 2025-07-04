@@ -404,46 +404,64 @@ ${itemsInfo}
     selectedItems: ClothingItem[]
   ): Promise<string> {
     try {
-      const gender = userProfile.gender === 'male' ? 'man' : 'woman';
+      const gender = userProfile.gender === 'male' ? 'male' : 'female';
       const bodyType = userProfile.bodyType.name;
 
-      // 의상 아이템들을 이미지 URL과 함께 설명
+      // 의상 아이템들을 정확한 브랜드, 색상, 스타일로 설명
       const itemDescriptions = selectedItems.map(item => {
         const colors = item.colors.join(' and ');
-        const description = `${colors} ${item.name} by ${item.brand}`;
-        return description;
-      }).join(', ');
+        const brand = item.brand;
+        const name = item.name;
+        const category = item.category;
+        
+        return `${category}: ${colors} ${name} by ${brand} (EXACT MATCH REQUIRED)`;
+      }).join('\n');
 
       const prompt = `
-Create a high-quality, professional fashion photograph of a ${gender} model wearing the following outfit:
+Create a high-quality product showcase image of a simple, neutral ${gender} mannequin wearing the following outfit:
+
+CLOTHING ITEMS TO DISPLAY (MUST MATCH EXACTLY):
 ${itemDescriptions}
 
-IMPORTANT STYLING REQUIREMENTS:
-- Model should be standing in a classic, straight posture (정자세)
-- Arms naturally at sides or slightly positioned for fashion pose
-- Front-facing view, looking directly at camera
-- Professional fashion photography lighting
-- Clean, minimalist white or light gray studio background
-- No text, logos, or watermarks visible
-- High resolution, crisp details
+CRITICAL REQUIREMENTS - CLOTHING ACCURACY:
+- Each clothing item MUST match the exact brand, color, and style specified
+- Do NOT modify, reinterpret, or substitute any clothing details
+- Colors must be EXACTLY as specified (no variations or interpretations)
+- Brand styling characteristics must be preserved
+- Clothing fit should match the specified brand's typical fit
 
-BODY TYPE: ${bodyType} body type
-HEIGHT: Proportional to ${userProfile.height}cm
+MANNEQUIN SPECIFICATIONS:
+- Use a simple, neutral, featureless mannequin (not a real person)
+- Plain white or light gray mannequin body
+- No facial features, hair, or human characteristics
+- Proportional to ${userProfile.height}cm height
+- ${bodyType} body proportions
+- Standing in straight, neutral pose with arms at sides
 
-OUTFIT COORDINATION:
-- Ensure all clothing items work harmoniously together
-- Pay attention to color coordination and style matching
-- Professional styling that looks realistic and wearable
-- Each piece should be clearly visible and well-fitted
+PHOTOGRAPHY SETUP:
+- Clean white studio background
+- Professional product photography lighting
+- Even, soft lighting that shows fabric textures clearly
+- No shadows or dramatic lighting effects
+- Front-facing view showing complete outfit
+- Full body shot from head to toe
+- High resolution, crisp details on all clothing items
 
-PHOTOGRAPHY STYLE:
-- Professional fashion editorial style
-- Soft, even lighting that shows fabric textures
-- Sharp focus on the outfit details
-- Model should have a confident, natural expression
-- Full body shot showing the complete outfit
+STYLING REQUIREMENTS:
+- All clothing items should be properly fitted on the mannequin
+- Natural draping and positioning of garments
+- Each piece should be clearly visible and well-coordinated
+- Professional retail display presentation
+- Focus on showcasing the actual clothing items, not the mannequin
 
-The result should look like a professional fashion catalog photo with excellent styling and coordination.
+FORBIDDEN ELEMENTS:
+- No human model or realistic human features
+- No text, logos, or watermarks in the image
+- No background elements or props
+- No dramatic poses or fashion styling
+- No modification of specified clothing details
+
+The result should look like a professional product catalog photo focusing on the clothing items displayed on a simple mannequin.
 `;
 
       const response = await this.openai.images.generate({
